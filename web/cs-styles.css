@@ -1,0 +1,67 @@
+
+h1 {
+	background-color: #E0E0E0; 
+	text-align: center; 
+	font-weight: bolder; 
+	font-family: helvetica;
+	padding: : 20px;
+}
+
+
+body {
+	background-color: #F0F0F0;
+}
+
+#git {
+	padding:20px; 
+	border-color:blue; 
+	background-color: lightgray;
+	font-family: helvetica;
+	font-size: 0.7rem;
+}
+
+#testblock {
+	width:600px; 
+	margin-left: auto; 
+	margin-right: auto;
+	margin-top: 20px;
+	flex-flow: center; 
+	display: none;
+}
+
+#playarea {
+	background-color: #E8E8E8; 
+	width:800px; 
+	margin-left: auto; 
+	margin-right: auto;
+	margin-top: 5px;
+	margin-bottom: 10px;
+	text-align: center; 
+	font-family: helvetica;
+	font-size: 0.95em;
+}
+
+#playOut {
+	padding:20px; 
+	border-color:blue; 
+	background-color: lightgray;
+	display: none;
+}
+
+#Tauout {
+	padding:20px; 
+	border-color:black; 
+	background-color: lightblue;
+}
+
+#Tauhtml {
+	padding:20px; 
+	border-color:black; 
+	background-color: lightgreen;
+}
+
+#Taumsg {
+	padding:20px; 
+	border-color:black; 
+	background-color: lightgreen;
+}
