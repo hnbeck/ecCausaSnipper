@@ -1,7 +1,8 @@
-  /* 
+/**
+  * 
   * Tau Prolog. A Prolog interpreter in JavaScript.
   * 
-  * Copyright (C) 2017 - 2018 José Antonio Riaza Valverde
+  * Copyright (C) 2017 - 2019 José Antonio Riaza Valverde
   * 
   * Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
   * 
@@ -18,7 +19,7 @@
 (function() {
 	
 	// VERSION
-	var version = { major: 0, minor: 2, patch: 67, status: "beta" };
+	var version = { major: 0, minor: 2, patch: 80, status: "beta" };
 
 
 
@@ -340,6 +341,7 @@
 	// Escape atoms
 	function escapeAtom(str, quote) {
 		var atom = '';
+		if( str === "\\" ) return null;
 		if( str.length < 2 ) return str;
 		try {
 			str = str.replace(/\\([0-7]+)\\/g, function(match, g1) {
@@ -423,7 +425,7 @@
 	var rules = {
 		whitespace: /^\s*(?:(?:%.*)|(?:\/\*(?:\n|\r|.)*?\*\/)|(?:\s+))\s*/,
 		variable: /^(?:[A-Z_][a-zA-Z0-9_]*)/,
-		atom: /^(\!|,|;|[a-z][0-9a-zA-Z_]*|[#\$\&\*\+\-\.\/\:\<\=\>\?\@\^\~\\]+|'(?:[^']*?(?:\\(?:x?\d+)?\\)*(?:'')*(?:\\')*)*')/,
+		atom: /^(\!|,|;|[a-z][0-9a-zA-Z_]*|[#\$\&\*\+\-\.\/\:\<\=\>\?\@\^\~\\]+|'(?:(?:'')|(?:\\')|[^'])*')/,
 		number: /^(?:0o[0-7]+|0x[0-9a-fA-F]+|0b[01]+|0'(?:''|\\[abfnrtv\\'"`]|\\x?\d+\\|[^\\])|\d+(?:\.\d+(?:[eE][+-]?\d+)?)?)/,
 		string: /^(?:"([^"]|""|\\")*"|`([^`]|``|\\`)*`)/,
 		l_brace: /^(?:\[)/,
@@ -875,6 +877,12 @@
 						};
 					} else if(expr.value.indicator === "-->/2") {
 						rule = rule_to_dcg(new pl.type.Rule(expr.value.args[0], expr.value.args[1]), thread);
+						if(!pl.type.is_rule(rule))
+							return {
+								value: rule,
+								len: start,
+								type: ERROR
+							};
 						rule.body = body_conversion( rule.body );
 						obj = {
 							value: rule,
@@ -916,44 +924,113 @@
 		tokenizer.new_text( string );
 		var n = 0;
 		var tokens = tokenizer.get_tokens( n );
-		do {
-			if( tokens === null || !tokens[n] ) break;
+		while( tokens !== null && tokens[n] ) {
 			var expr = parseRule(thread, tokens, n);
 			if( expr.type === ERROR ) {
 				return new Term("throw", [expr.value]);
-			} else if(expr.value.body === null && expr.value.head.indicator === "?-/1") {
-				var n_thread = new Thread( thread.session );
-				n_thread.add_goal( expr.value.head.args[0] );
-				n_thread.answer( function( answer ) {
-					if( pl.type.is_error( answer ) ) {
-						thread.throw_warning( answer.args[0] );
-					} else if( answer === false || answer === null ) {
-						thread.throw_warning( pl.warning.failed_goal( expr.value.head.args[0], expr.len ) );
-					}
-				} );
+			} else {
+				// Term expansion
+				var term_expansion = thread.session.rules["term_expansion/2"];
+				if(term_expansion && term_expansion.length > 0) {
+					var n_thread = new Thread( thread.session );
+					var term = expr.value.body ? new Term(":-", [expr.value.head, expr.value.body]) : expr.value.head;
+					term = term.rename( thread.session );
+					n_thread.query("term_expansion(" + term.toString() + ", X).");
+					n_thread.answer(function(answer) {
+						if(answer && !pl.type.is_error(answer) && pl.type.is_term(answer.links['X'])) {
+							var term = answer.links['X'];
+							var rule = term.indicator === ":-/2" ? new Rule(term.args[0], term.args[1]) : new Rule( term, null ) ;
+							parseProgramExpansion(thread, options, reconsulted, {value: rule, len: expr.len, type: expr.type});
+						} else {
+							parseProgramExpansion(thread, options, reconsulted, expr);
+						}
+					});
+				} else {
+					parseProgramExpansion(thread, options, reconsulted, expr);
+				}
 				n = expr.len;
-				var result = true;
-			} else if(expr.value.body === null && expr.value.head.indicator === ":-/1") {
-				var result = thread.run_directive(expr.value.head.args[0]);
-				n = expr.len;
-				if(expr.value.head.args[0].indicator === "char_conversion/2") {
+				if(expr.value.body === null && expr.value.head.indicator === ":-/1" && 
+				   expr.value.head.args[0].indicator === "char_conversion/2") {
 					tokens = tokenizer.get_tokens( n );
 					n = 0;
 				}
-			} else {
-				indicator = expr.value.head.indicator;
-				if( options.reconsult !== false && reconsulted[indicator] !== true && !thread.is_multifile_predicate( indicator ) ) {
-					thread.session.rules[indicator] = filter( thread.session.rules[indicator] || [], function( rule ) { return rule.dynamic; } );
-					reconsulted[indicator] = true;
-				}
-				var result = thread.add_rule(expr.value, options);
-				n = expr.len;
 			}
-			if(!result) {
-				return result;
-			}
-		} while( true );
+		}
 		return true;
+	}
+
+	function parseGoalExpansion(thread, head, term, set, origin) {
+		var n_thread = new Thread( thread.session );
+		n_thread.__goal_expansion = true;
+		var varterm = thread.next_free_variable();
+		var varhead = thread.next_free_variable();
+		var goal = varhead + " = " + head + ", goal_expansion(" + term + ", " + varterm + ").";
+		n_thread.query(goal);
+		n_thread.answer(function(answer) {
+			if(answer && !pl.type.is_error(answer) && answer.links[varterm]) {
+				set(answer.links[varhead], body_conversion(answer.links[varterm]));
+				parseGoalExpansion(thread, origin.head(), origin.term(), origin.set, origin);
+			}
+		});
+	}
+
+	function parseQueryExpansion(thread, term) {
+		var n_thread = new Thread( thread.session );
+		n_thread.__goal_expansion = true;
+		var varterm = thread.next_free_variable();
+		var goal = "goal_expansion(" + term + ", " + varterm + ").";
+		n_thread.query(goal);
+		var variables = n_thread.head_point().substitution.domain();
+		n_thread.answer(function(answer) {
+			if(answer && !pl.type.is_error(answer) && answer.links[varterm]) {
+				for(var i = 0; i < variables.length; i++) {
+					if(variables[i] !== varterm.id && answer.links[variables[i]]) {
+						var subs = new Substitution();
+						subs.links[answer.links[variables[i]]] = variables[i];
+						answer.links[varterm] = answer.links[varterm].apply( subs );
+					}
+				}
+				parseQueryExpansion(thread, body_conversion(answer.links[varterm]));
+			} else {
+				thread.add_goal(term);
+			}
+		});
+	}
+
+	function parseProgramExpansion(thread, options, reconsulted, expr) {
+		if(expr.value.body === null && expr.value.head.indicator === "?-/1") {
+			var n_thread = new Thread( thread.session );
+			n_thread.add_goal( expr.value.head.args[0] );
+			n_thread.answer( function( answer ) {
+				if( pl.type.is_error( answer ) ) {
+					thread.throw_warning( answer.args[0] );
+				} else if( answer === false || answer === null ) {
+					thread.throw_warning( pl.warning.failed_goal( expr.value.head.args[0], expr.len ) );
+				}
+			} );
+		} else if(expr.value.body === null && expr.value.head.indicator === ":-/1") {
+			thread.run_directive(expr.value.head.args[0]);
+		} else {
+			indicator = expr.value.head.indicator;
+			if( options.reconsult !== false && reconsulted[indicator] !== true && !thread.is_multifile_predicate( indicator ) ) {
+				thread.session.rules[indicator] = filter( thread.session.rules[indicator] || [], function( rule ) { return rule.dynamic; } );
+				reconsulted[indicator] = true;
+			}
+			var goal_expansion = thread.session.rules["goal_expansion/2"];
+			if(expr.value.body !== null && goal_expansion && goal_expansion.length > 0) {
+				thread.renamed_variables = {};
+				var origin = {
+					head: function() { return expr.value.head; },
+					term: function() { return expr.value.body; },
+					set: function(h, p){
+						expr.value.head = h;
+						expr.value.body = p;
+					}
+				};
+				parseGoalExpansion(thread, expr.value.head, body_conversion(expr.value.body), origin.set, origin);
+			}
+			thread.add_rule(expr.value, options);
+		}
 	}
 	
 	// Parse a query
@@ -969,7 +1046,14 @@
 				var expr_position = expr.len;
 				var tokens_pos = expr_position;
 				if(tokens[expr_position] && tokens[expr_position].name === "atom" && tokens[expr_position].raw === ".") {
-					thread.add_goal( body_conversion(expr.value) );
+					expr.value = body_conversion(expr.value);
+					// Goal expansion
+					var goal_expansion = thread.session.rules["goal_expansion/2"];
+					if(!thread.__goal_expansion && goal_expansion && goal_expansion.length > 0) {
+						parseQueryExpansion(thread, expr.value);
+					} else {
+						thread.add_goal( expr.value );
+					}
 				} else {
 					var token = tokens[expr_position];
 					return new Term("throw", [pl.error.syntax(token ? token : tokens[expr_position-1], ". or operator expected", !token)] );
@@ -992,10 +1076,45 @@
 		rule = rule.rename( thread );
 		var begin = thread.next_free_variable();
 		var dcg = body_to_dcg( rule.body, begin, thread );
-		if( dcg.error ) return dcg.value;
+		if( dcg.error )
+			return dcg.value;
 		rule.body = dcg.value;
-		rule.head.args = rule.head.args.concat([begin,dcg.variable]);
-		rule.head = new Term(rule.head.id, rule.head.args);
+		// push-back lists
+		if(rule.head.indicator === ",/2") {
+			var terminals = rule.head.args[1];
+			rule.head = rule.head.args[0];
+			var last = thread.next_free_variable();
+			var pointer = terminals;
+			if(!pl.type.is_list(pointer)) {
+				return pl.error.type("list", pointer, "DCG/0");
+			}
+			if(pointer.indicator === "[]/0") {
+				terminals = dcg.variable;
+			} else {
+				while(pointer.indicator === "./2" && pl.type.is_list(pointer) && pointer.args[1].indicator !== "[]/0") {
+					pointer = pointer.args[1];
+				}
+				if(pl.type.is_variable(pointer))
+					return pl.error.instantiation("DCG/0");
+				else if(!pl.type.is_list(pointer))
+					return pl.error.type("list", terminals, "DCG/0");
+				pointer.args[1] = dcg.variable;
+			}
+			rule.body = new Term(",", [rule.body, new Term("=", [last, terminals])]);
+			rule.head = new Term(rule.head.id, rule.head.args.concat([begin, last]));
+		} else {
+			// replace first assignment
+			var first_assign = rule.body;
+			if(pl.type.is_term(first_assign) && first_assign.indicator === ",/2")
+				first_assign = first_assign.args[0];
+			if(pl.type.is_term(first_assign) && first_assign.indicator === "=/2" &&
+			   pl.type.is_variable(first_assign.args[0]) && first_assign.args[0] === begin) {
+				begin = first_assign.args[1];
+				rule.body = rule.body.replace(null);
+			}
+			// add last variable
+			rule.head = new Term(rule.head.id, rule.head.args.concat([begin, dcg.variable]));
+		}
 		return rule;
 	}
 
@@ -1003,25 +1122,37 @@
 	function body_to_dcg(expr, last, thread) {
 		var free;
 		if( pl.type.is_term( expr ) && expr.indicator === "!/0" ) {
+			free = thread.next_free_variable();
 			return {
-				value: expr,
-				variable: last,
+				value: new Term(",", [expr, new Term("=", [last, free])]),
+				variable: free,
 				error: false
 			};
-		} else if( pl.type.is_term( expr ) && expr.indicator === ",/2" ) {
+		} else if( pl.type.is_term( expr ) && (expr.indicator === ",/2" || expr.indicator === "->/2") ) {
 			var left = body_to_dcg(expr.args[0], last, thread);
 			if( left.error ) return left;
 			var right = body_to_dcg(expr.args[1], left.variable, thread);
 			if( right.error ) return right;
 			return {
-				value: new Term(',', [left.value, right.value]),
+				value: new Term(expr.id, [left.value, right.value]),
+				variable: right.variable,
+				error: false
+			};
+		} else if( pl.type.is_term( expr ) && expr.indicator === ";/2" ) {
+			var left = body_to_dcg(expr.args[0], last, thread);
+			if( left.error ) return left;
+			var right = body_to_dcg(expr.args[1], last, thread);
+			if( right.error ) return right;
+			return {
+				value: new Term(",", [new Term(";", [left.value, right.value]), new Term("=", [left.variable, right.variable])]),
 				variable: right.variable,
 				error: false
 			};
 		} else if( pl.type.is_term( expr ) && expr.indicator === "{}/1" ) {
+			free = thread.next_free_variable();
 			return {
-				value: expr.args[0],
-				variable: last,
+				value: new Term(",", [expr.args[0], new Term("=", [last, free])]),
+				variable: free,
 				error: false
 			};
 		} else if( pl.type.is_empty_list( expr ) ) {
@@ -1040,13 +1171,13 @@
 			}
 			if( pl.type.is_variable( pointer ) ) {
 				return {
-					value: pl.error.instantiation("DCG"),
+					value: pl.error.instantiation("DCG/0"),
 					variable: last,
 					error: true
 				};
 			} else if( !pl.type.is_empty_list( pointer ) ) {
 				return {
-					value: pl.error.type("list", expr, "DCG"),
+					value: pl.error.type("list", expr, "DCG/0"),
 					variable: last,
 					error: true
 				};
@@ -1060,8 +1191,7 @@
 			}
 		} else if( pl.type.is_callable( expr ) ) {
 			free = thread.next_free_variable();
-			expr.args = expr.args.concat([last,free]);
-			expr = new Term( expr.id, expr.args );
+			expr = new Term( expr.id, expr.args.concat([last,free]) );
 			return {
 				value: expr,
 				variable: free,
@@ -1069,7 +1199,7 @@
 			};
 		} else {
 			return {
-				value: pl.error.type( "callable", expr, "DCG" ),
+				value: pl.error.type( "callable", expr, "DCG/0" ),
 				variable: last,
 				error: true
 			};
@@ -1087,9 +1217,9 @@
 	
 	// List to Prolog list
 	function arrayToList( array, cons ) {
-		var list = cons ? cons : new pl.type.Term( "[]", [] );
+		var list = cons ? cons : new Term( "[]", [] );
 		for(var i = array.length-1; i >= 0; i-- )
-			list = new pl.type.Term( ".", [array[i], list] );
+			list = new Term( ".", [array[i], list] );
 		return list;
 	}
 	
@@ -1168,7 +1298,8 @@
 	// Terms
 	var term_ref = 0;
 	function Term( id, args, ref ) {
-		this.ref = ref || ++term_ref;
+		term_ref++;
+		this.ref = ref || term_ref;
 		this.id = id;
 		this.args = args || [];
 		this.indicator = id + "/" + this.args.length;
@@ -1190,9 +1321,11 @@
 	}
 	
 	// Substitutions
-	function Substitution( links ) {
+	function Substitution( links, attrs ) {
 		links = links || {};
+		attrs = attrs || {};
 		this.links = links;
+		this.attrs = attrs;
 	}
 	
 	// States
@@ -1226,13 +1359,13 @@
 		this.limit = limit;
 		this.streams = {
 			"user_input": new Stream(
-				typeof module !== 'undefined' && module.exports ? nodejs_user_input : tau_user_input,
+				nodejs_flag ? nodejs_user_input : tau_user_input,
 				"read", "user_input", "text", false, "reset" ),
 			"user_output": new Stream(
-				typeof module !== 'undefined' && module.exports ? nodejs_user_output : tau_user_output,
+				nodejs_flag ? nodejs_user_output : tau_user_output,
 				"write", "user_output", "text", false, "eof_code" )
 		};
-		this.file_system = typeof module !== 'undefined' && module.exports ? nodejs_file_system : tau_file_system;
+		this.file_system = nodejs_flag ? nodejs_file_system : tau_file_system;
 		this.standard_input = this.streams["user_input"];
 		this.standard_output = this.streams["user_output"];
 		this.current_input = this.streams["user_input"];
@@ -1252,7 +1385,8 @@
 			occurs_check: pl.flag.occurs_check.value,
 			dialect: pl.flag.dialect.value,
 			version_data: pl.flag.version_data.value,
-			nodejs: pl.flag.nodejs.value
+			nodejs: pl.flag.nodejs.value,
+			argv: pl.flag.argv.value
 		};
 		this.__loaded_modules = [];
 		this.__char_conversion = {};
@@ -1293,6 +1427,7 @@
 		this.__calls = [];
 		this.current_limit = this.session.limit;
 		this.warnings = [];
+		this.__goal_expansion = false;
 	}
 	
 	// Modules
@@ -1374,7 +1509,7 @@
 		options.quoted = options.quoted === undefined ? true: options.quoted;
 		options.ignore_ops = options.ignore_ops === undefined ? false : options.ignore_ops;
 		options.numbervars = options.numbervars === undefined ? false : options.numbervars;
-		priority = priority === undefined ? 1200 : priority;
+		priority = priority === undefined ? {priority: 999, class: "", indicator: ""} : priority;
 		from = from === undefined ? "" : from;
 		if( options.numbervars && this.indicator === "$VAR/1" && pl.type.is_integer( this.args[0] ) && this.args[0].value >= 0 ) {
 			var i = this.args[0].value;
@@ -1390,30 +1525,33 @@
 			case "{}/1":
 				return "{" + this.args[0].toString( options ) + "}";
 			case "./2":
-				var list = "[" + this.args[0].toString( options );
-				var pointer = this.args[1];
-				while( pointer.indicator === "./2" ) {
-					list += ", " + pointer.args[0].toString( options );
-					pointer = pointer.args[1];
+				if( options.ignore_ops === false ) {
+					var list = "[" + this.args[0].toString( options );
+					var pointer = this.args[1];
+					while( pointer.indicator === "./2" ) {
+						list += ", " + pointer.args[0].toString( options );
+						pointer = pointer.args[1];
+					}
+					if( pointer.indicator !== "[]/0" ) {
+						list += "|" + pointer.toString( options );
+					}
+					list += "]";
+					return list;
 				}
-				if( pointer.indicator !== "[]/0" ) {
-					list += "|" + pointer.toString( options );
-				}
-				list += "]";
-				return list;
-			case ",/2":
-				return "(" + this.args[0].toString( options ) + ", " + this.args[1].toString( options ) + ")";
 			default:
 				var id = this.id;
 				var operator = options.session ? options.session.lookup_operator( this.id, this.args.length ) : null;
 				if( options.session === undefined || options.ignore_ops || operator === null ) {
-					if( options.quoted && ! /^(!|,|;|[a-z][0-9a-zA-Z_]*)$/.test( id ) && id !== "{}" && id !== "[]" )
+					if( options.quoted && ! /^(!|[a-z][0-9a-zA-Z_]*)$/.test( id ) && id !== "{}" && id !== "[]" )
 						id = "'" + redoEscape(id) + "'";
 					return id + (this.args.length ? "(" + map( this.args,
 						function(x) { return x.toString( options); }
 					).join(", ") + ")" : "");
 				} else {
-					var cond = operator.priority > priority.priority || operator.priority === priority.priority && (
+					var priority_op = parseInt(operator.priority);
+					var priority_arg = parseInt(priority.priority);
+					var cond = priority_op > priority_arg || priority_op === priority_arg && (
+						operator.class === "xfx" ||
 						operator.class === "xfy" && this.indicator !== priority.indicator ||
 						operator.class === "yfx" && this.indicator !== priority.indicator ||
 						this.indicator === priority.indicator && operator.class === "yfx" && from === "right" ||
@@ -1516,11 +1654,20 @@
 	// Substitutions
 	Substitution.prototype.clone = function() {
 		var links = {};
+		var attrs = {};
 		for( var link in this.links ) {
 			if(!this.links.hasOwnProperty(link)) continue;
 			links[link] = this.links[link].clone();
 		}
-		return new Substitution( links );
+		for( var attr in this.attrs ) {
+			if(!this.attrs.hasOwnProperty(attrs)) continue;
+			attrs[attr] = {};
+			for( var m in this.attrs[attr] ) {
+				if(!this.attrs[attr].hasOwnProperty(m)) continue;
+				attrs[attr][m] = this.attrs[attr][m].clone();
+			}
+		}
+		return new Substitution( links, attrs );
 	};
 	
 	// States
@@ -1612,9 +1759,46 @@
 	
 	// Terms
 	Term.prototype.rename = function( thread ) {
-		return new Term( this.id, map( this.args, function( arg ) {
-			return arg.rename( thread );
-		} ) );
+		// atom
+		/*if(this.args.length === 0)
+			return this;*/
+		// list
+		if( this.indicator === "./2" ) {
+			var arr = [], pointer = this;
+			var last_neq = -1, pointer_neq = null, i = 0;
+			while( pointer.indicator === "./2" ) {
+				var app = pointer.args[0].rename(thread);
+				var cmp = app == pointer.args[0];
+				arr.push(app);
+				pointer = pointer.args[1];
+				if(!cmp) {
+					last_neq = i;
+					pointer_neq = pointer;
+				}
+				i++;
+			}
+			var list = pointer.rename(thread);
+			var cmp = list == pointer;
+			if(last_neq === -1 && cmp)
+				return this;
+			var start = cmp ? last_neq : arr.length-1;
+			var list = cmp ? pointer_neq : list;
+			for(var i = start; i >= 0; i--) {
+				list = new Term( ".", [arr[i], list] );
+			}
+			return list;
+		}
+		// compound term
+		var eq = true;
+		var args = [];
+		for(var i = 0; i < this.args.length; i++) {
+			var app = this.args[i].rename(thread);
+			eq = eq && this.args[i] == app;
+			args.push(app);
+		}
+		/*if(eq)
+			return this;*/
+		return new Term(this.id, args);
 	};
 
 	// Streams
@@ -1629,7 +1813,7 @@
 	
 	
 	
-	// GET VARIABLES FROM PROLOG OBJECTS
+	// GET ID OF VARIABLES FROM PROLOG OBJECTS
 	
 	// Variables
 	Var.prototype.variables = function() {
@@ -1681,22 +1865,46 @@
 	
 	// Terms
 	Term.prototype.apply = function( subs ) {
+		// atom
+		if(this.args.length === 0)
+			return this;
+		// list
 		if( this.indicator === "./2" ) {
-			var arr = [];
-			var pointer = this;
+			var arr = [], pointer = this;
+			var last_neq = -1, pointer_neq = null, i = 0;
 			while( pointer.indicator === "./2" ) {
-				arr.push( pointer.args[0].apply( subs ) );
+				var app = pointer.args[0].apply(subs);
+				var cmp = app == pointer.args[0];
+				arr.push(app);
 				pointer = pointer.args[1];
+				if(!cmp) {
+					last_neq = i;
+					pointer_neq = pointer;
+				}
+				i++;
 			}
-			var list = pointer.apply( subs );
-			for(var i = arr.length-1; i >= 0; i--) {
+			var list = pointer.apply(subs);
+			var cmp = list == pointer;
+			if(last_neq === -1 && cmp)
+				return this;
+			var start = cmp ? last_neq : arr.length-1;
+			var list = cmp ? pointer_neq : list;
+			for(var i = start; i >= 0; i--) {
 				list = new Term( ".", [arr[i], list] );
 			}
 			return list;
 		}
-		return new Term( this.id, map( this.args, function( arg ) {
-			return arg.apply( subs );
-		} ), this.ref );
+		// compound term
+		var eq = true;
+		var args = [];
+		for(var i = 0; i < this.args.length; i++) {
+			var app = this.args[i].apply(subs);
+			eq = eq && this.args[i] == app;
+			args.push(app);
+		}
+		if(eq)
+			return this;
+		return new Term(this.id, args, this.ref);
 	};
 
 	// Streams
@@ -1711,12 +1919,20 @@
 	
 	// Substitutions
 	Substitution.prototype.apply = function( subs ) {
-		var link, links = {};
+		var link, links = {}, attr, attrs = {}, m;
 		for( link in this.links ) {
 			if(!this.links.hasOwnProperty(link)) continue;
 			links[link] = this.links[link].apply(subs);
 		}
-		return new Substitution( links );
+		for( attr in this.attrs ) {
+			if(!this.attrs.hasOwnProperty(attr)) continue;
+			attrs[attr] = {};
+			for( m in this.attrs[attr] ) {
+				if(!this.attrs[attr].hasOwnProperty(m)) continue;
+				attrs[attr][m] = this.attrs[attr][m].apply(subs);
+			}
+		}
+		return new Substitution( links, attrs );
 	};
 	
 	
@@ -1746,7 +1962,7 @@
 
 	// Search term
 	Term.prototype.search = function( expr ) {
-		if( pl.type.is_term( expr ) && expr.ref !== undefined && this.ref === expr.ref )
+		if(this == expr || this.ref === expr.ref)
 			return true;
 		for( var i = 0; i < this.args.length; i++ )
 			if( pl.type.is_term( this.args[i] ) && this.args[i].search( expr ) )
@@ -1784,7 +2000,7 @@
 
 	// Set current output
 	Session.prototype.set_current_output = function( output ) {
-		this.current_input = output;
+		this.current_output = output;
 	};
 	Thread.prototype.set_current_output = function( output ) {
 		return this.session.set_current_output( output);
@@ -2004,8 +2220,8 @@
 		var variables = [];
 		if( variable.id === "_" || this.session.renamed_variables[variable.id] === undefined ) {
 			this.session.rename++;
-			if( this.points.length > 0 )
-				variables = this.head_point().substitution.domain();
+			if( this.current_point )
+				variables = this.current_point.substitution.domain();
 			while( indexOf( variables, pl.format_variable( this.session.rename ) ) !== -1 ) {
 				this.session.rename++;
 			}
@@ -2025,8 +2241,8 @@
 	Thread.prototype.next_free_variable = function() {
 		this.session.rename++;
 		var variables = [];
-		if( this.points.length > 0 )
-			variables = this.head_point().substitution.domain();
+		if( this.current_point )
+			variables = this.current_point.substitution.domain();
 		while( indexOf( variables, pl.format_variable( this.session.rename ) ) !== -1 ) {
 			this.session.rename++;
 		}
@@ -2104,7 +2320,7 @@
 		}
 		var asyn = false;
 		var point = this.points.pop();
-		
+		this.current_point = point;
 		if( this.debugger )
 			this.debugger_states.push( point );
 		
@@ -2142,6 +2358,9 @@
 					} else if( srule instanceof Function ) {
 						asyn = srule( this, point, atom );
 					} else {
+						// Goal expansion
+						if( this.__goal_expansion && atom.indicator === "goal_expansion/2" )
+							srule = srule.concat(pl.predicate["goal_expansion/2"]);
 						for( var _rule in srule ) {
 							if(!srule.hasOwnProperty(_rule)) continue;
 							var rule = srule[_rule];
@@ -2367,7 +2586,7 @@
 				links[id] = value;
 			}
 		}
-		return new Substitution( links );
+		return new Substitution( links, this.attrs );
 	};
 	
 	// Exclude variables
@@ -2379,7 +2598,7 @@
 				links[variable] = this.links[variable];
 			}
 		}
-		return new Substitution( links );
+		return new Substitution( links, this.attrs );
 	};
 	
 	// Add link
@@ -2395,6 +2614,37 @@
 			vars.push( f(x) );
 		return vars;
 	};
+
+	// Get an attribute
+	Substitution.prototype.get_attribute = function( variable, module ) {
+		if( this.attrs[variable] )
+			return this.attrs[variable][module];
+	}
+
+	// Set an attribute (in a new substitution)
+	Substitution.prototype.set_attribute = function( variable, module, value ) {
+		var subs = new Substitution( this.links );
+		for( var v in this.attrs ) {
+			if( v === variable ) {
+				subs.attrs[v] = {};
+				for( var m in this.attrs[v] ) {
+					subs.attrs[v][m] = this.attrs[v][m];
+				}
+			} else {
+				subs.attrs[v] = this.attrs[v];
+			}
+		}
+		if( !subs.attrs[variable] ) {
+			subs.attrs[variable] = {};
+		}
+		subs.attrs[variable][module] = value;
+		return subs;
+	}
+
+	// Check if a variables has attributes
+	Substitution.prototype.has_attributes = function( variable ) {
+		return this.attrs[variable] && this.attrs[variable] !== {};
+	}
 	
 	
 	
@@ -2444,7 +2694,7 @@
 	
 	// PROLOG TO JAVASCRIPT
 	Var.prototype.toJavaScript = function() {
-		return undefined;
+		return this.toString();
 	};
 	
 	// Numbers
@@ -2454,23 +2704,29 @@
 	
 	// Terms
 	Term.prototype.toJavaScript = function() {
+		// Atom => String
 		if( this.args.length === 0 && this.indicator !== "[]/0" ) {
-			return this.id;
+			return this.toString();
 		} else if( pl.type.is_list( this ) ) {
+			// List => Array
+			var all_obj = true;
 			var arr = [];
+			var obj = {};
 			var pointer = this;
 			var value;
 			while( pointer.indicator === "./2" ) {
 				value = pointer.args[0].toJavaScript();
-				if( value === undefined )
-					return undefined;
 				arr.push( value );
+				all_obj = all_obj && pl.type.is_term(pointer.args[0]) && pointer.args[0].indicator === "-/2" && pl.type.is_atom(pointer.args[0].args[0]);
+				if(all_obj)
+					obj[pointer.args[0].args[0].id] = pointer.args[0].args[1].toJavaScript();
 				pointer = pointer.args[1];
 			}
 			if( pointer.indicator === "[]/0" )
-				return arr;
+				return all_obj && arr.length > 0 ? obj : arr;
+
 		}
-		return undefined;
+		return this.toString();
 	};
 	
 	
@@ -2494,6 +2750,16 @@
 				singleton.push( key );
 		return singleton;
 	};
+
+
+
+	// NODEJS
+
+	var nodejs_flag = typeof module !== 'undefined' && module.exports !== undefined;
+
+	var nodejs_arguments = nodejs_flag ?
+		arrayToList( map(process.argv.slice(1), function(arg) { return new Term( arg ); })) :
+		new Term("[]", []);
 	
 	
 	
@@ -2502,7 +2768,7 @@
 	var pl = {
 		
 		// Environment
-		__env: typeof module !== 'undefined' && module.exports ? global : window,
+		__env: nodejs_flag ? global : window,
 		
 		// Modules
 		module: {},
@@ -2545,32 +2811,38 @@
 			test: {
 				
 				// Boolean
-				boolean: function( obj ) {
+				boolean: function( obj, tobj ) {
 					return obj === true || obj === false;
 				},
 				
 				// Number
-				number: function( obj ) {
+				number: function( obj, tobj ) {
 					return typeof obj === "number";
 				},
 				
 				// String
-				string: function( obj ) {
+				string: function( obj, tobj ) {
 					return typeof obj === "string";
 				},
 				
 				// List
-				list: function( obj ) {
+				list: function( obj, tobj ) {
 					return obj instanceof Array;
 				},
 				
 				// Variable
-				variable: function( obj ) {
+				variable: function( obj, tobj ) {
 					return obj === undefined;
+				},
+
+				// Object
+				object: function( obj, tobj ) {
+					tobj = tobj === undefined ? false : tobj;
+					return tobj && !(obj instanceof Array) && typeof obj === "object";
 				},
 				
 				// Any
-				any: function( _ ) {
+				any: function( _, tobj ) {
 					return true;
 				}
 				
@@ -2580,26 +2852,27 @@
 			conversion: {
 				
 				// Bolean
-				boolean: function( obj ) {
+				boolean: function( obj, tobj ) {
 					return new Term( obj ? "true" : "false", [] );
 				},
 				
 				// Number
-				number: function( obj ) {
+				number: function( obj, tobj ) {
 					return new Num( obj, obj % 1 !== 0 );
 				},
 				
 				// String
-				string: function( obj ) {
+				string: function( obj, tobj ) {
 					return new Term( obj, [] );
 				},
 				
 				// List
-				list: function( obj ) {
+				list: function( obj, tobj ) {
+					tobj = tobj === undefined ? false : tobj;
 					var arr = [];
 					var elem;
 					for( var i = 0; i < obj.length; i++ ) {
-						elem = pl.fromJavaScript.apply( obj[i] );
+						elem = pl.fromJavaScript.apply( obj[i], tobj );
 						if( elem === undefined )
 							return undefined;
 						arr.push( elem );
@@ -2608,23 +2881,39 @@
 				},
 				
 				// Variable
-				variable: function( obj ) {
+				variable: function( obj, tobj ) {
 					return new Var( "_" );
+				},
+
+				// Object
+				object: function( obj, tobj ) {
+					tobj = tobj === undefined ? false : tobj;
+					var list = new Term("[]", []);
+					var arr = [];
+					for(var prop in obj) {
+						if(!obj.hasOwnProperty(prop)) continue;
+						arr.push(new Term("-", [
+							pl.fromJavaScript.apply(prop, tobj),
+							pl.fromJavaScript.apply(obj[prop], tobj)
+						]));
+					}
+					return arrayToList(arr);
 				},
 				
 				// Any
-				any: function( obj ) {
+				any: function( obj, tobj ) {
 					return undefined;
 				}
 				
 			},
 			
 			// Transform object
-			apply: function( obj ) {
+			apply: function( obj, tobj ) {
+				tobj = tobj === undefined ? false : tobj;
 				for( var i in pl.fromJavaScript.test )
-					if( i !== "any" && pl.fromJavaScript.test[i]( obj ) )
-						return pl.fromJavaScript.conversion[i]( obj );
-				return pl.fromJavaScript.conversion.any( obj );
+					if( i !== "any" && pl.fromJavaScript.test[i]( obj, tobj ) )
+						return pl.fromJavaScript.conversion[i]( obj, tobj );
+				return pl.fromJavaScript.conversion.any( obj, tobj );
 			}
 		},
 		
@@ -2809,7 +3098,7 @@
 			
 			// Is a built-in predicate
 			is_builtin: function( obj ) {
-				return obj instanceof Term && pl.predicate[obj.indicator] !== undefined;
+				return obj instanceof Term && pl.predicate[obj.indicator] !== undefined && obj.indicator !== "goal_expansion/2";
 			},
 			
 			// Is an error
@@ -3293,6 +3582,66 @@
 		
 		// Built-in predicates
 		predicate: {
+
+			// TERM AND GOAL EXPANSION
+
+			"goal_expansion/2": [
+				new Rule(new Term("goal_expansion", [new Term(",", [new Var("X"),new Var("Y")]),new Term(",", [new Var("X_"),new Var("Y_")])]), new Term(";", [new Term(",", [new Term("goal_expansion", [new Var("X"),new Var("X_")]),new Term(";", [new Term("goal_expansion", [new Var("Y"),new Var("Y_")]),new Term("=", [new Var("Y_"),new Var("Y")])])]),new Term(",", [new Term("=", [new Var("X"),new Var("X_")]),new Term("goal_expansion", [new Var("Y"),new Var("Y_")])])])),
+				new Rule(new Term("goal_expansion", [new Term(";", [new Var("X"),new Var("Y")]),new Term(";", [new Var("X_"),new Var("Y_")])]), new Term(";", [new Term(",", [new Term("goal_expansion", [new Var("X"),new Var("X_")]),new Term(";", [new Term("goal_expansion", [new Var("Y"),new Var("Y_")]),new Term("=", [new Var("Y_"),new Var("Y")])])]),new Term(",", [new Term("=", [new Var("X"),new Var("X_")]),new Term("goal_expansion", [new Var("Y"),new Var("Y_")])])])),
+				new Rule(new Term("goal_expansion", [new Term("->", [new Var("X"),new Var("Y")]),new Term("->", [new Var("X_"),new Var("Y_")])]), new Term(";", [new Term(",", [new Term("goal_expansion", [new Var("X"),new Var("X_")]),new Term(";", [new Term("goal_expansion", [new Var("Y"),new Var("Y_")]),new Term("=", [new Var("Y_"),new Var("Y")])])]),new Term(",", [new Term("=", [new Var("X"),new Var("X_")]),new Term("goal_expansion", [new Var("Y"),new Var("Y_")])])])),
+				new Rule(new Term("goal_expansion", [new Term("catch", [new Var("X"),new Var("Y"),new Var("Z")]),new Term("catch", [new Var("X_"),new Var("Y"),new Var("Z_")])]), new Term(";", [new Term(",", [new Term("goal_expansion", [new Var("X"),new Var("X_")]),new Term(";", [new Term("goal_expansion", [new Var("Z"),new Var("Z_")]),new Term("=", [new Var("Z_"),new Var("Z")])])]),new Term(",", [new Term("=", [new Var("X_"),new Var("X")]),new Term("goal_expansion", [new Var("Z"),new Var("Z_")])])])),
+				new Rule(new Term("goal_expansion", [new Term("\\+", [new Var("X")]),new Term("\\+", [new Var("X_")])]), new Term(",", [new Term("nonvar", [new Var("X")]),new Term("goal_expansion", [new Var("X"),new Var("X_")])])),
+				new Rule(new Term("goal_expansion", [new Term("once", [new Var("X")]),new Term("once", [new Var("X_")])]), new Term(",", [new Term("nonvar", [new Var("X")]),new Term("goal_expansion", [new Var("X"),new Var("X_")])])),
+				new Rule(new Term("goal_expansion", [new Term("findall", [new Var("X"),new Var("Y"),new Var("Z")]),new Term("findall", [new Var("X"),new Var("Y_"),new Var("Z")])]), new Term("goal_expansion", [new Var("Y"),new Var("Y_")])),
+				new Rule(new Term("goal_expansion", [new Term("setof", [new Var("X"),new Var("Y"),new Var("Z")]),new Term("findall", [new Var("X"),new Var("Y_"),new Var("Z")])]), new Term("goal_expansion", [new Var("Y"),new Var("Y_")])),
+				new Rule(new Term("goal_expansion", [new Term("bagof", [new Var("X"),new Var("Y"),new Var("Z")]),new Term("findall", [new Var("X"),new Var("Y_"),new Var("Z")])]), new Term("goal_expansion", [new Var("Y"),new Var("Y_")])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X")]),new Term("call", [new Var("X_")])]), new Term(",", [new Term("nonvar", [new Var("X")]),new Term("goal_expansion", [new Var("X"),new Var("X_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term("[]", [])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term("[]", [])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2"),new Var("A3")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term(".", [new Var("A3"),new Term("[]", [])])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2"),new Var("A3"),new Var("A4")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term(".", [new Var("A3"),new Term(".", [new Var("A4"),new Term("[]", [])])])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2"),new Var("A3"),new Var("A4"),new Var("A5")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term(".", [new Var("A3"),new Term(".", [new Var("A4"),new Term(".", [new Var("A5"),new Term("[]", [])])])])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2"),new Var("A3"),new Var("A4"),new Var("A5"),new Var("A6")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term(".", [new Var("A3"),new Term(".", [new Var("A4"),new Term(".", [new Var("A5"),new Term(".", [new Var("A6"),new Term("[]", [])])])])])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])])),
+				new Rule(new Term("goal_expansion", [new Term("call", [new Var("X"),new Var("A1"),new Var("A2"),new Var("A3"),new Var("A4"),new Var("A5"),new Var("A6"),new Var("A7")]),new Term("call", [new Var("F_")])]), new Term(",", [new Term("=..", [new Var("F"),new Term(".", [new Var("X"),new Term(".", [new Var("A1"),new Term(".", [new Var("A2"),new Term(".", [new Var("A3"),new Term(".", [new Var("A4"),new Term(".", [new Var("A5"),new Term(".", [new Var("A6"),new Term(".", [new Var("A7"),new Term("[]", [])])])])])])])])])]),new Term("goal_expansion", [new Var("F"),new Var("F_")])]))
+			],
+
+
+
+			// ATTRIBUTED VARIABLES
+			
+			//put_attr/3
+			"put_attr/3": function( thread, point, atom ) {
+				var variable = atom.args[0], module = atom.args[1], value = atom.args[2];
+				if( !pl.type.is_variable(variable) ) {
+					thread.throw_error( pl.error.type( "variable", variable, atom.indicator ) );
+				} else if( !pl.type.is_atom(module) ) {
+					thread.throw_error( pl.error.type( "atom", module, atom.indicator ) );
+				} else {
+					var subs = point.substitution.set_attribute( variable.id, module, value );
+					thread.prepend( [new State( point.goal.replace(null), subs, point )] );
+				}
+			},
+
+			// get_attr/3
+			"get_attr/3": function( thread, point, atom ) {
+				var variable = atom.args[0], module = atom.args[1], value = atom.args[2];
+				if( !pl.type.is_variable(variable) ) {
+					thread.throw_error( pl.error.type( "variable", variable, atom.indicator ) );
+				} else if( !pl.type.is_atom(module) ) {
+					thread.throw_error( pl.error.type( "atom", module, atom.indicator ) );
+				} else {
+					var attr = point.substitution.get_attribute( variable.id, module );
+					if( attr ) {
+						thread.prepend( [new State(
+							point.goal.replace( new Term("=", [value, attr]) ),
+							point.substitution,
+							point
+						)] );
+					}
+				}
+			},
+
+
 			
 			// INPUT AND OUTPUT
 			
@@ -3329,33 +3678,19 @@
 		
 			// ;/2 (disjunction)
 			";/2": function( thread, point, atom ) {
-				if( pl.type.is_term( atom.args[0] ) && atom.args[0].indicator === "->/2" ) {
-					var points = thread.points;
-					var format_success = thread.session.format_success;
-					var format_error = thread.session.format_error;
-					thread.session.format_success = function(x) { return x.substitution; };
-					thread.session.format_error = function(x) { return x.goal; };
-					thread.points = [new State( atom.args[0].args[0], point.substitution, point )];
-					var callback = function( answer ) {
-						thread.points = points;
-						thread.session.format_success = format_success;
-						thread.session.format_error = format_error;
-						if( answer === false ) {
-							thread.prepend( [new State( point.goal.replace( atom.args[1] ), point.substitution, point )] );
-						} else if( pl.type.is_error( answer ) )
-							thread.throw_error( answer.args[0] );
-						else if( answer === null ) {
-							thread.prepend( [point] );
-							thread.__calls.shift()( null );
-						} else {
-							thread.prepend( [new State( point.goal.replace( atom.args[0].args[1] ).apply( answer ), point.substitution.apply( answer ), point )] );
-						}
-					};
-					thread.__calls.unshift( callback );
+				var left = atom.args[0], right = atom.args[1];
+				if( pl.type.is_term( left ) && left.indicator === "->/2" ) {
+					var cond = left.args[0], then = left.args[1], otherwise = right;
+					var goal_fst = point.goal.replace( new Term( ",", [cond, new Term( ",", [new Term( "!" ), then] )] ) );
+					var goal_snd = point.goal.replace( new Term( ",", [new Term( "!" ), otherwise] ) );
+					thread.prepend( [
+						new State( point.goal.replace( goal_fst ), point.substitution, point ),
+						new State( point.goal.replace( goal_snd ), point.substitution, point )
+					] );
 				} else {
-					var left = new State( point.goal.replace( atom.args[0] ), point.substitution, point );
-					var right = new State( point.goal.replace( atom.args[1] ), point.substitution, point );
-					thread.prepend( [left, right] );
+					var state_left = new State( point.goal.replace( left ), point.substitution, point );
+					var sate_right = new State( point.goal.replace( right ), point.substitution, point );
+					thread.prepend( [state_left, sate_right] );
 				}
 			},
 			
@@ -3429,7 +3764,8 @@
 			
 			// ->/2 (implication)
 			"->/2": function( thread, point, atom ) {
-				var goal = point.goal.replace( new Term( ",", [atom.args[0], new Term( ",", [new Term( "!" ), atom.args[1]] )] ) );
+				var cond = atom.args[0], then = atom.args[1];
+				var goal = point.goal.replace( new Term( ",", [cond, new Term( ",", [new Term( "!" ), then] )] ) );
 				thread.prepend( [new State( goal, point.substitution, point )] );
 			},
 			
@@ -3784,6 +4120,10 @@
 								var states = [];
 								for( var i = 0; i < answers.length; i++ ) {
 									answer = answers[i].answers.sort( pl.compare );
+									for( var i = answer.length-1; i > 0; i-- ) {
+										if( answer[i].equals(answer[i-1]) )
+										answer.splice(i,1);
+									}
 									var list = new Term( "[]" );
 									for( var j = answer.length - 1; j >= 0; j-- ) {
 										list = new Term( ".", [answer[j], list] );
@@ -5904,6 +6244,8 @@
 			
 			// halt/0
 			"halt/0": function( thread, point, _ ) {
+				if( nodejs_flag )
+					process.exit();
 				thread.points = [];
 			},
 			
@@ -5915,6 +6257,8 @@
 				} else if( !pl.type.is_integer( int ) ) {
 					thread.throw_error( pl.error.type( "integer", int, atom.indicator ) );
 				} else {
+					if( nodejs_flag )
+						process.exit(int.value);
 					thread.points = [];
 				}
 			},
@@ -5954,6 +6298,93 @@
 					thread.session.flag[flag.id] = value;
 					thread.success( point );
 				}
+			},
+
+
+
+			// OPERATING SYSTEM INTERACTION
+
+			// shell/1
+			"shell/1": function( thread, point, atom ) {
+				var command = atom.args[0];
+				thread.prepend( [new State(
+					point.goal.replace( new Term("shell", [command, new Num(0, false)]) ),
+					point.substitution,
+					point
+				)] );
+			},
+
+			// shell/2
+			"shell/2": function( thread, point, atom ) {
+				var command = atom.args[0], status = atom.args[1];
+				if( pl.type.is_variable(command) ) {
+					thread.throw_error( pl.error.instantiation( atom.indicator ) );
+				} else if( !pl.type.is_atom(command) ) {
+					thread.throw_error( pl.error.type( "atom", command, atom.indicator ) );
+				} else if( !pl.type.is_variable(status) && !pl.type.is_integer(status) ) {
+					thread.throw_error( pl.error.type( "integer", status, atom.indicator ) );
+				} else {
+					if(nodejs_flag) {
+						const { exec } = require('child_process');
+						exec( command.id, function() {} ).on( 'exit', function(code) {
+							thread.prepend( [new State(
+								point.goal.replace( new Term("=", [status, new Num(code, false)]) ),
+								point.substitution,
+								point
+							)] );
+							thread.again();
+						} );
+						return true;
+					} else {
+						try {
+							eval( command.id );
+							thread.prepend( [new State(
+								point.goal.replace( new Term("=", [status, new Num(0, false)]) ),
+								point.substitution,
+								point
+							)] );
+						} catch( error ) {
+							thread.prepend( [new State(
+								point.goal.replace( new Term("=", [status, new Num(1, false)]) ),
+								point.substitution,
+								point
+							)] );
+						}
+					}
+				}
+			},
+
+
+
+			// GRAMMARS
+
+			// phrase/3
+			"phrase/3": function( thread, point, atom ) {
+				var grbody = atom.args[0], s0 = atom.args[1], s = atom.args[2];
+				if( pl.type.is_variable( grbody ) ) {
+					thread.throw_error( pl.error.instantiation( atom.indicator ) );
+				} else if( !pl.type.is_callable( grbody ) ) {
+					thread.throw_error( pl.error.type( "callable", grbody, atom.indicator ) );
+				} else {
+					var goal = body_to_dcg( grbody.clone(), s0, thread );
+					if(goal !== null) {
+						thread.prepend( [new State(
+							point.goal.replace( new Term( ",", [goal.value, new Term("=", [goal.variable, s])] ) ), 
+							point.substitution,
+							point
+						)] );
+					}
+				}
+			},
+
+			// phrase/2
+			"phrase/2": function( thread, point, atom ) {
+				var grbody = atom.args[0], s0 = atom.args[1];
+				thread.prepend( [new State(
+					point.goal.replace( new Term( "phrase", [grbody, s0, new Term("[]", [])] ) ), 
+					point.substitution,
+					point
+				)] );
 			}
 
 		},
@@ -5990,7 +6421,7 @@
 			},
 			
 			// Character conversion
-			char_conversion : {
+			char_conversion: {
 				allowed: [new Term( "on" ), new Term( "off" )],
 				value: new Term( "on" ),
 				changeable: true
@@ -6048,8 +6479,15 @@
 			// NodeJS
 			nodejs: {
 				allowed: [new Term( "yes" ), new Term( "no" )],
-				value: new Term( typeof module !== 'undefined' && module.exports ? "yes" : "no" ),
+				value: new Term( nodejs_flag ? "yes" : "no" ),
 				changeable: false
+			},
+
+			// Arguments
+			argv: {
+				allowed: [nodejs_arguments],
+				value: nodejs_arguments,
+				changeble: false
 			}
 			
 		},
@@ -6062,11 +6500,25 @@
 				var eq = G.pop();
 				s = eq.left;
 				t = eq.right;
+				if(s == t)
+					continue;
 				if( pl.type.is_term(s) && pl.type.is_term(t) ) {
 					if( s.indicator !== t.indicator )
 						return null;
-					for( var i = 0; i < s.args.length; i++ )
-						G.push( {left: s.args[i], right: t.args[i]} );
+					// list
+					if(s.indicator === "./2") {
+						var pointer_s = s, pointer_t = t;
+						while(pointer_s.indicator === "./2" && pointer_t.indicator === "./2") {
+							G.push( {left: pointer_s.args[0], right: pointer_t.args[0]} );
+							pointer_s = pointer_s.args[1];
+							pointer_t = pointer_t.args[1];
+						}
+						G.push( {left: pointer_s, right: pointer_t} );
+					// compound term
+					} else {
+						for( var i = 0; i < s.args.length; i++ )
+							G.push( {left: s.args[i], right: t.args[i]} );
+					}
 				} else if( pl.type.is_number(s) && pl.type.is_number(t) ) {
 					if( s.value !== t.value || s.is_float !== t.is_float )
 						return null;
@@ -6075,7 +6527,7 @@
 					if( pl.type.is_variable(t) && s.id === t.id )
 						continue;
 					// Occurs check
-					if( occurs_check === true && t.variables().indexOf( s.id ) !== -1 )
+					if( occurs_check === true && indexOf( t.variables(), s.id ) !== -1 )
 						return null;
 					if( s.id !== "_" ) {
 						var subs = new Substitution();
@@ -6099,7 +6551,6 @@
 			}
 			return new Substitution( links );
 		},
-		
 		
 		// Compare
 		compare: function( obj1, obj2 ) {
@@ -6253,16 +6704,31 @@
 				if( pl.type.is_substitution( answer ) ) {
 					var dom = answer.domain( true );
 					answer = answer.filter( function( id, value ) {
-						return !pl.type.is_variable( value ) || dom.indexOf( value.id ) !== -1 && id !== value.id;
+						return !pl.type.is_variable( value ) ||
+							pl.type.is_variable( value ) && answer.has_attributes( id ) ||
+							indexOf( dom, value.id ) !== -1 && id !== value.id;
 					} );
 				}
 				for( var link in answer.links ) {
-					if(!answer.links.hasOwnProperty(link)) continue;
-					i++;
-					if( str !== "" ) {
-						str += ", ";
+					if(!answer.links.hasOwnProperty(link))
+						continue;
+					if( pl.type.is_variable( answer.links[link] ) && link === answer.links[link].id ) {
+						var attrs = answer.attrs[link];
+						for( var module in attrs ) {
+							if(!attrs.hasOwnProperty(module))
+								continue;
+							i++;
+							if( str !== "" )
+								str += ", ";
+							str += "put_attr(" + link + ", " + module + ", " + attrs[module].toString(options) + ")";
+						}
+					} else {
+						i++;
+						if( str !== "" )
+							str += ", ";
+						str += link.toString( options ) + " = " +
+							answer.links[link].toString( options, {priority: "700", class: "xfx", indicator: "=/2"}, "right" );
 					}
-					str += link.toString( options ) + " = " + answer.links[link].toString( options );
 				}
 				var delimiter = typeof thread === "undefined" || thread.points.length > 0 ? " ;" : "."; 
 				if( i === 0 ) {
@@ -6331,8 +6797,7 @@
 		window.pl = pl;
 	}
 	
-})();
-var pl;
+})();var pl;
 (function( pl ) {
 
 	var predicates = function() {
@@ -6978,11 +7443,14 @@ var pl;
 			
 			// statistics/0
 			"statistics/0": function( thread, point, atom ) {
-				console.log( "% Tau Prolog statistics" );
-				for( var x in statistics ) {
-					console.log( "%%% " + x + ": " + statistics[x]( thread ).toString() );
-				}
-				thread.success( point );
+				var stats = "% Tau Prolog statistics";
+				for(var x in statistics)
+					stats += "\n%%% " + x + ": " + statistics[x](thread).toString();
+				thread.prepend([new pl.type.State(
+					point.goal.replace(new pl.type.Term("write", [new pl.type.Term(stats)])),
+					point.substitution,
+					point
+				)]);
 			},
 			
 			// statistics/2
@@ -8224,7 +8692,7 @@ var pl;
 			
 			// global/1
 			"global/1": function( thread, point, atom ) {
-				thread.prepend( [new pl.type.State( point.goal.replace( new pl.type.Term( "=", [atom.args[0], new pl.type.JSValue( pl.__env )] ) ), point.substitution, point )] );
+				thread.prepend( [new pl.type.State( point.goal.replace( new pl.type.Term( "=", [atom.args[0], pl.fromJavaScript.apply(pl.__env)] ) ), point.substitution, point )] );
 			},
 			
 			// apply/3:
@@ -8310,110 +8778,376 @@ var pl;
 						thread.prepend( states );
 					}
 				}
+			},
+
+			// json_prolog/2
+			"json_prolog/2": function( thread, point, atom ) {
+				var json = atom.args[0], prolog = atom.args[1];
+				if( pl.type.is_variable(json) && pl.type.is_variable(prolog) ) {
+					thread.throw_error( pl.error.instantiation( atom.indicator ) );
+				} else if( !pl.type.is_variable(json) && (!pl.type.is_js_object(json) || typeof(json.value) !== "object")) {
+					thread.throw_error( pl.error.type( "JsValueOBJECT", json, atom.indicator ) );
+				} else if( !pl.type.is_variable(prolog) && !pl.type.is_list(prolog) ) {
+					thread.throw_error( pl.error.type( "list", prolog, atom.indicator ) );
+				} else {
+					if(pl.type.is_variable(prolog)) {
+						var list = pl.fromJavaScript.apply(json.value, true);
+						thread.prepend([new pl.type.State(
+							point.goal.replace(new pl.type.Term("=", [prolog, list])),
+							point.substitution,
+							point
+						)]);
+					} else {
+						var obj = new pl.type.JSValue(prolog.toJavaScript());
+						thread.prepend([new pl.type.State(
+							point.goal.replace(new pl.type.Term("=", [json, obj])),
+							point.substitution,
+							point
+						)]);
+					}
+				}
+			},
+
+			// json_atom/2
+			"json_atom/2": function( thread, point, atom ) {
+				var json = atom.args[0], prolog = atom.args[1];
+				if( pl.type.is_variable(json) && pl.type.is_variable(prolog) ) {
+					thread.throw_error( pl.error.instantiation( atom.indicator ) );
+				} else if( !pl.type.is_variable(json) && (!pl.type.is_js_object(json) || typeof(json.value) !== "object")) {
+					thread.throw_error( pl.error.type( "JsValueOBJECT", json, atom.indicator ) );
+				} else if( !pl.type.is_variable(prolog) && !pl.type.is_atom(prolog) ) {
+					thread.throw_error( pl.error.type( "atom", prolog, atom.indicator ) );
+				} else {
+					if(pl.type.is_variable(prolog)) {
+						try {
+							var jatom = new pl.type.Term(JSON.stringify(json.value), []);
+							thread.prepend([new pl.type.State(
+								point.goal.replace(new pl.type.Term("=", [prolog, jatom])),
+								point.substitution,
+								point
+							)]);
+						} catch(ex) {}
+					} else {
+						try {
+							console.log(JSON.parse(prolog.id));
+							var obj = pl.fromJavaScript.apply(JSON.parse(prolog.id));
+							thread.prepend([new pl.type.State(
+								point.goal.replace(new pl.type.Term("=", [json, obj])),
+								point.substitution,
+								point
+							)]);
+						} catch(ex) {}
+					}
+				}
+			},
+
+			// ajax/3
+			"ajax/3": [
+				new pl.type.Rule(new pl.type.Term("ajax", [new pl.type.Var("Method"),new pl.type.Var("URL"),new pl.type.Var("Response")]), new pl.type.Term("ajax", [new pl.type.Var("Method"),new pl.type.Var("URL"),new pl.type.Var("Response"),new pl.type.Term("[]", [])]))
+			],
+
+			// ajax/4
+			"ajax/4": function( thread, point, atom ) {
+				var method = atom.args[0], url = atom.args[1], value = atom.args[2], options = atom.args[3];
+				if(pl.type.is_variable(url) || pl.type.is_variable(method) || pl.type.is_variable(options)) {
+					thread.throw_error( pl.error.instantiation( atom.indicator ) );
+				} else if(!pl.type.is_atom(url)) {
+					thread.throw_error( pl.error.type( "atom", url, atom.indicator ) );
+				} else if(!pl.type.is_atom(method)) {
+					thread.throw_error( pl.error.type( "atom", method, atom.indicator ) );
+				} else if(!pl.type.is_list(options)) {
+					thread.throw_error( pl.error.type( "list", options, atom.indicator ) );
+				} else if(method.id !== "get" && method.id !== "post" && method.id !== "put" && method.id !== "delete") {
+					thread.throw_error( pl.error.domain( "http_method", method, atom.indicator ) );
+				} else {
+					var pointer = options;
+					var opt_type = null;
+					var opt_timeout = 0;
+					var opt_credentials = "false";
+					var opt_async = "true";
+					var opt_mime = null;
+					var opt_headers = [];
+					var opt_body = new FormData();
+					// Options
+					while(pl.type.is_term(pointer) && pointer.indicator === "./2") {
+						var option = pointer.args[0];
+						if(!pl.type.is_term(option) || option.args.length !== 1) {
+							thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+							return;
+						}
+						var prop = option.args[0];
+						// type/1
+						if(option.indicator === "type/1") {
+							if(!pl.type.is_atom(prop) || prop.id !== "text" && prop.id !== "json" && prop.id !== "document") {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							opt_type = prop.id;
+						// timeout/1
+						} else if(option.indicator === "timeout/1") {
+							if(!pl.type.is_integer(prop) || prop.value < 0) {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							opt_timeout = prop.value;
+						// async/1
+						} else if(option.indicator === "async/1") {
+							if(!pl.type.is_atom(prop) || prop.id !== "true" && prop.id !== "false") {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							opt_async = prop.id;
+						// credentials/1
+						} else if(option.indicator === "credentials/1") {
+							if(!pl.type.is_atom(prop) || prop.id !== "true" && prop.id !== "false") {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							opt_credentials = prop.id;
+						// mime/1
+						} else if(option.indicator === "mime/1") {
+							if(!pl.type.is_atom(prop)) {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							opt_mime = prop.id;
+						// headers/1
+						} else if(option.indicator === "headers/1") {
+							if(!pl.type.is_list(prop)) {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							var hpointer = prop;
+							while(pl.type.is_term(hpointer) && hpointer.indicator === "./2") {
+								var header = hpointer.args[0];
+								if(!pl.type.is_term(header) || header.indicator !== "-/2" || !pl.type.is_atom(header.args[0]) || !pl.type.is_atom(header.args[1])) {
+									thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+									return;
+								}
+								opt_headers.push({header: header.args[0].id, value: header.args[1].id});
+								hpointer = hpointer.args[1];
+							}
+							if(pl.type.is_variable(hpointer)) {
+								thread.throw_error( pl.error.instantiation( atom.indicator ) );
+								return;
+							} else if(!pl.type.is_term(hpointer) || hpointer.indicator !== "[]/0") {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+						// body/1
+						} else if(option.indicator === "body/1") {
+							if(!pl.type.is_list(prop) && (pl.type.is_dom_object === undefined || !pl.type.is_dom_object(prop))) {
+								thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+								return;
+							}
+							if(pl.type.is_list(prop)) {
+								var hpointer = prop;
+								while(pl.type.is_term(hpointer) && hpointer.indicator === "./2") {
+									var body = hpointer.args[0];
+									if(!pl.type.is_term(body) || body.indicator !== "-/2" || !pl.type.is_atom(body.args[0]) || !pl.type.is_atom(body.args[1])) {
+										thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+										return;
+									}
+									opt_body.append(body.args[0].id, body.args[1].id);
+									hpointer = hpointer.args[1];
+								}
+								if(pl.type.is_variable(hpointer)) {
+									thread.throw_error( pl.error.instantiation( atom.indicator ) );
+									return;
+								} else if(!pl.type.is_term(hpointer) || hpointer.indicator !== "[]/0") {
+									thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+									return;
+								}
+							} else {
+								opt_body = prop.value;
+							}
+						// otherwise
+						} else {
+							thread.throw_error( pl.error.domain( "ajax_option", option, atom.indicator ) );
+							return;
+						}
+						pointer = pointer.args[1];
+					}
+					if(pl.type.is_variable(pointer)) {
+						thread.throw_error( pl.error.instantiation( atom.indicator ) );
+						return;
+					} else if(!pl.type.is_term(pointer) || pointer.indicator !== "[]/0") {
+						thread.throw_error( pl.error.type( "list", options, atom.indicator ) );
+						return;
+					}
+					// Request
+					var xhttp = new XMLHttpRequest();
+					if(opt_mime !== null)
+						xhttp.overrideMimeType(opt_mime);
+					var fn = function() {
+						if(this.readyState == 4) {
+							if(this.status == 200) {
+								// Get response
+								var data = null;
+								var content_type = this.getResponseHeader("Content-Type");
+								if(this.responseType === "" || this.responseType === "json" || content_type.indexOf("application/json") !== -1) {
+									try {
+											data = pl.fromJavaScript.apply(JSON.parse(this.responseText));
+									} catch(e) {}
+								}
+								if(data === null) {
+									if((this.responseType === "document" || this.responseType === "" || content_type.indexOf("text/html") !== -1 || content_type.indexOf("application/xml") !== -1) && this.responseXML !== null && pl.type.DOM !== undefined) {
+										data = new pl.type.DOM( this.responseXML );
+									} else if(this.responseType === "" || this.responseType === "text") {
+										data = new pl.type.Term(this.responseText, []);
+									}
+								}
+								// Add answer
+								if(data !== null)
+									thread.prepend( [
+										new pl.type.State(
+											point.goal.replace(new pl.type.Term("=", [value, data])),
+											point.substitution,
+											point
+										)
+									] );
+							}
+							if(opt_async === "true")
+								thread.again();
+						}
+					};
+					xhttp.onreadystatechange = fn;
+					xhttp.open(method.id.toUpperCase(), url.id, opt_async === "true");
+					if(opt_type !== null && opt_async === "true")
+						xhttp.responseType = opt_type;
+					xhttp.withCredentials = opt_credentials === "true";
+					if(opt_async === "true")
+						xhttp.timeout = opt_timeout;
+					for(var i = 0; i < opt_headers.length; i++)
+						xhttp.setRequestHeader(opt_headers[i].header, opt_headers[i].value);
+					xhttp.send(opt_body);
+					if(opt_async === "true")
+						return true;
+					else
+						fn.apply(xhttp);
+				}
 			}
 
 		};
 	};
 	
-	var exports = ["global/1", "apply/3", "apply/4", "prop/2", "prop/3"];
+	var exports = ["global/1", "apply/3", "apply/4", "prop/2", "prop/3", "json_prolog/2", "json_atom/2", "ajax/3", "ajax/4"];
 
 
+
+	/*function prolog_to_json(prolog) {
+		var pointer = prolog;
+		var obj = {};
+		while(pl.type.is_term(pointer) && pointer.indicator === "./2") {
+			var pair = pointer.args[0];
+			if(pl.type.is_variable(pair)) {
+				return pl.error.instantiation( atom.indicator );
+			} else if(!pl.type.is_term(pair) || pair.indicator !== "-/2" || !pl.type.is_atom(pair.args[0])) {
+				return pl.error.domain( "pair", pair, atom.indicator );
+			}
+			if()
+			obj[pair.args[0].id] = pair.args[1].toJavaScript();
+			pointer = pointer.args[1];
+		}
+	}*/
 
 	// JS OBJECTS
-	
-	// Is a JS object
-	pl.type.is_js_object = function( obj ) {
-		return obj instanceof pl.type.JSValue;
-	};
+	function define_properties() {
+		// Is a JS object
+		pl.type.is_js_object = function( obj ) {
+			return obj instanceof pl.type.JSValue;
+		};
 
-	// Ordering relation
-	pl.type.order.push( pl.type.JSValue );
+		// Ordering relation
+		pl.type.order.push( pl.type.JSValue );
 
-	// JSValue Prolog object
-	pl.type.JSValue = function( value ) {
-		this.value = value;
+		// JSValue Prolog object
+		pl.type.JSValue = function( value ) {
+			this.value = value;
+		}
+
+		// toString
+		pl.type.JSValue.prototype.toString = function() {
+			return "<javascript>(" + (typeof this.value).toLowerCase() + ")";
+		};
+
+		// clone
+		pl.type.JSValue.prototype.clone = function() {
+			return new pl.type.JSValue( this.value );
+		};
+
+		// equals
+		pl.type.JSValue.prototype.equals = function( obj ) {
+			return pl.type.is_js_object( obj ) && this.value === obj.value;
+		};
+
+		// rename
+		pl.type.JSValue.prototype.rename = function( _ ) {
+			return this;
+		};
+
+		// get variables
+		pl.type.JSValue.prototype.variables = function() {
+			return [];
+		};
+
+		// apply substitutions
+		pl.type.JSValue.prototype.apply = function( _ ) {
+			return this;
+		};
+
+		// unify
+		pl.type.JSValue.prototype.unify = function( obj, _ ) {
+			if( pl.type.is_js_object( obj ) && this.value === obj.value ) {
+				return new pl.type.State( obj, new pl.type.Substitution() );
+			}
+			return null;
+		};
+
+		// interpret
+		pl.type.JSValue.prototype.interpret = function( indicator ) {
+			return pl.error.instantiation( indicator );
+		};
+
+		// compare
+		pl.type.JSValue.prototype.compare = function( obj ) {
+			if( this.value === obj.value ) {
+				return 0;
+			} else if( this.value < obj.value ) {
+				return -1;
+			} else if( this.value > obj.value ) {
+				return 1;
+			}
+		};
+
+		// to javascript
+		pl.type.JSValue.prototype.toJavaScript = function() {
+			return this.value;
+		};
+
+		// from javascript
+		pl.fromJavaScript.conversion.any = function( obj ) {
+			return new pl.type.JSValue( obj );
+		};
+
+
+
+		// JavaScript error
+		pl.error.javascript = function( error, indicator ) {
+			return new pl.type.Term( "error", [new pl.type.Term( "javascript_error", [new pl.type.Term( error )] ), pl.utils.str_indicator( indicator )] );
+		};
 	}
-
-	// toString
-	pl.type.JSValue.prototype.toString = function() {
-		return "<javascript>(" + (typeof this.value).toLowerCase() + ")";
-	};
-
-	// clone
-	pl.type.JSValue.prototype.clone = function() {
-		return new pl.type.JSValue( this.value );
-	};
-
-	// equals
-	pl.type.JSValue.prototype.equals = function( obj ) {
-		return pl.type.is_js_object( obj ) && this.value === obj.value;
-	};
-
-	// rename
-	pl.type.JSValue.prototype.rename = function( _ ) {
-		return this;
-	};
-
-	// get variables
-	pl.type.JSValue.prototype.variables = function() {
-		return [];
-	};
-
-	// apply substitutions
-	pl.type.JSValue.prototype.apply = function( _ ) {
-		return this;
-	};
-
-	// unify
-	pl.type.JSValue.prototype.unify = function( obj, _ ) {
-		if( pl.type.is_js_object( obj ) && this.value === obj.value ) {
-			return new pl.type.State( obj, new pl.type.Substitution() );
-		}
-		return null;
-	};
-
-	// interpret
-	pl.type.JSValue.prototype.interpret = function( indicator ) {
-		return pl.error.instantiation( indicator );
-	};
-
-	// compare
-	pl.type.JSValue.prototype.compare = function( obj ) {
-		if( this.value === obj.value ) {
-			return 0;
-		} else if( this.value < obj.value ) {
-			return -1;
-		} else if( this.value > obj.value ) {
-			return 1;
-		}
-	};
-	
-	// to javascript
-	pl.type.JSValue.prototype.toJavaScript = function() {
-		return this.value;
-	};
-	
-	// from javascrip
-	pl.fromJavaScript.conversion.any = function( obj ) {
-		return new pl.type.JSValue( obj );
-	};
-	
-	
-	
-	// JavaScript error
-	pl.error.javascript = function( error, indicator ) {
-		return new pl.type.Term( "error", [new pl.type.Term( "javascript_error", [new pl.type.Term( error )] ), pl.utils.str_indicator( indicator )] );
-	};
-	
 	
 
 
 	if( typeof module !== 'undefined' ) {
 		module.exports = function( p ) {
 			pl = p;
+			define_properties();
 			new pl.type.Module( "js", predicates(), exports );
 		};
 	} else {
+		define_properties();
 		new pl.type.Module( "js", predicates(), exports );
 	}
 
