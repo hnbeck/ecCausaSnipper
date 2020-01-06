@@ -14,6 +14,7 @@ The top goal is to argue, strategies tell how the goals below this strategy will
 
 Game play is not finally defined. But it will be around growing GSN trees and bring them in a shape which is usefull. Some experience of myself how to great good argumentation GSN trees will be put into this game.
 
+
 ### Further details
 
 Some initial documentation like rule specification and other things can be found at  [doc/eccs-rulefactsheet.xlsx](doc/eccs-rulefactsheet.xlsx)
