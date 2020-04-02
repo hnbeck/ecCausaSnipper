@@ -11,30 +11,24 @@
 	<script src="/web/jquery-1.11.3.min.js"  type="text/javascript"></script>
 	<script src="/web/tau-prolog.js" type="text/javascript"></script>
 	<script src="/web/pengines.js" type="text/javascript"></script>
-	<script src="/web/phaser.js" type="text/javascript"></script>
+	<script src="/web/pixi.min.js" type="text/javascript"></script>
+	<script src="/web/pixi-mousewheel.min.js" type="text/javascript"></script>
 	<script src="/web/costumes.js" type="text/javascript"></script>
-	<script type="text/javascript">
+	<script src="/web/windows.js" type="text/javascript"></script>
 
-		//////////////// Processing code -> graphics ////////////////////
-
-		
-
-		// Processing main draw function
-		
-
-	</script>
 
 	<title> ec Causa Snipper </title>
 	
 </head>
-<body>
+<body onload="pixiStart()">
 	<div id="playarea">
 		<h1>ecCausaSnipper</h1>
 		<p>Connect all evidences to the goals.</p> 
 		<p>
-		<button id='btStand' onclick="playClick()">Stand</button>
-		<p>
-		<div id='playContainer'></div>	
+		<div id='playContainer'>
+			 <canvas id="game-canvas" width="1000" height="800"></canvas>
+  		</div>
+		
 		</p>
 		<div id="playOut"></div>
 		<hr>
