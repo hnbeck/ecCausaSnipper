@@ -1,5 +1,5 @@
 
-function windowGenerator(configList,  alpha, width, height, winWidth, winHeight) {
+function windowGenerator(configList, width, height, winWidth, winHeight) {
 
     const window = new PIXI.Container(); 
     const viewport = new PIXI.Container();
@@ -11,7 +11,7 @@ function windowGenerator(configList,  alpha, width, height, winWidth, winHeight)
    
     ///// create viewport /////
     // indication of viewpoint area which may be much larger than camera view
-    area.alpha = alpha;
+    area.alpha = configList[0].alpha;
     area.width = width; 
     area.height = height; 
     area.name = "area";
@@ -31,7 +31,7 @@ function windowGenerator(configList,  alpha, width, height, winWidth, winHeight)
 
     viewport.addChild(area, marker);
     viewport.filter = configList[0];
-    viewport.name = "viewport";
+    viewport.name = configList[0].name;
 
     const augmentLayer = augmentGenerator(configList, width, height, winWidth, winHeight, viewport);
      // show only what camera can see
@@ -67,7 +67,7 @@ function augmentGenerator(configList, width, height, winWidth, winHeight, viewpo
 
         switch (configList[i]) {
 
-            case 's': 
+            case 's': // s stands for scaling allowed
                 const buttons = scaleGenerator(); 
 
                 buttons[btUp].x = winWidth - (buttons[btUp].width)*1.9; 
@@ -78,6 +78,7 @@ function augmentGenerator(configList, width, height, winWidth, winHeight, viewpo
                 augmentLayer.addChild(buttons[btDown]);
                 viewport.scaling = true; 
                 break;
+
             default: 
                 viewport.scaling = false; 
         }
@@ -171,7 +172,6 @@ function onPointerMove(event) {
         if (this.touchpoints.length < 2)
         {
             // only one point in list, ths last touchpoint
-            
             this.x -= (this.touchpoints[0][px] - this.data.global.x) * filterX;
             this.y -= (this.touchpoints[0][py] - this.data.global.y) * filterY;
             this.touchpoints[0][px] = this.data.global.x; 
@@ -215,7 +215,7 @@ function selectPoint(value, index, array)
 }
 
 
-//////////////////////////////////// button callbacks
+//////////////////////////////////// button callbacks //////////////////////////////
 
 function onBtUpDown () {
 

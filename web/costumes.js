@@ -49,8 +49,11 @@ function pixiAssets() {
     var goalCont  = gsnElemGenerator('goal',[[2, 'rl'],[1, 'mt'], [0, 'ph']]);
     var sCont  = gsnElemGenerator('strategy',[[2, 'rl'],[3, 'mt'], [1, 'ph']]);
     var sSolution  = gsnElemGenerator('solution',[[1, 'rl'],[0, 'mt'], [0, 'ph']]);
-    var playWindow = windowGenerator([{x:1, y:1}, 's'], 0.2, 1000, 2000, canvasWidth-200, canvasHeight); 
-    var ressourceWindow =  windowGenerator([ {x:0, y:1}, ''], 0.4, 200, 1000, 200, canvasHeight); 
+   
+    var playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
+                                        1000, 2000, canvasWidth-200, canvasHeight); 
+    var ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
+                                            200, 1000, 200, canvasHeight); 
 
     stage.addChild(playWindow);
     stage.addChild(ressourceWindow);
@@ -66,24 +69,15 @@ function pixiAssets() {
     goalCont.y = 50; 
     sCont.x = 100;
     sCont.y = 150; 
-   
-    sSolution
-            .on('pointerdown', onDragStart)
-            .on('pointerup', onDragEnd)
-            .on('pointerupoutside', onDragEnd)
-            .on('pointermove', onDragMove);
-
-     sCont   
-            .on('pointerdown', onDragStart)
-            .on('pointerup', onDragEnd)
-            .on('pointerupoutside', onDragEnd)
-            .on('pointermove', onDragMove);
 
     playWindow.vpRef.addChild(goalCont);
     playWindow.vpRef.addChild(sSolution);
     sSolution.x = ressourceWindow.width/2-sSolution.width/2; 
     sSolution.y = 100;  
+
+    // vprRef is the reference to the viewport where all elements resides (are child of)
     ressourceWindow.vpRef.addChild(sCont);
+    ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
 
     stage.interactive = false;
     stage.buttonMode = false; 
@@ -137,7 +131,14 @@ function gsnElemGenerator(ElemType, TypeList) {
                 PIXI.loader.resources[ressourceID].texture
             );  
     elemCont.addChild(gsnElement);
+    elemCont.name = ElemType; 
     gsnElement.anchor.set(0.5);
+    elemCont 
+            .on('pointerdown', onDragStart)
+            .on('pointerup', onDragEnd)
+            .on('pointerupoutside', onDragEnd)
+            .on('pointermove', onDragMove);
+
 
     const shiftX = gsnElement.width/2; 
     const shiftY = gsnElement.height/2; 
@@ -216,6 +217,7 @@ function symbolGenerator(elem) {
 function pixiUpdate() {
 
     //sSprite.x += 0.1;
+
     renderer.render(stage);
     requestAnimationFrame(pixiUpdate);
 }
@@ -231,6 +233,7 @@ function onDragStart(event) {
     this.alpha = 0.5;
     this.dragging = true;
     prio = true; 
+
     console.log("Sprite");
     event.stopPropagation();
 
@@ -242,6 +245,7 @@ function onDragEnd() {
     // set the interaction data to null
     this.data = null;
     prio = false; 
+    //console.log("drag end");
     event.stopPropagation();
 }
 
@@ -251,6 +255,14 @@ function onDragMove() {
         this.x = newPosition.x;
         this.y = newPosition.y;
     }
+    if (this.x < 20)
+    {
+        this.parent.dragReceiver.addChild(this); 
+        this.x = 800;
+        this.y = 100;
+        this.dragging = true; 
+    }
+    //console.log(this.x, this.parent.name);
     event.stopPropagation();
 }
 
