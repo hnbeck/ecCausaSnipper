@@ -46,36 +46,44 @@ function pixiAssets() {
     // the bottom child
     stage.addChild(background);
 
-    var goalCont  = goalGenerator([[2, 'rl'],[1, 'mt'], [0, 'ph']]);
-    var sCont  = goalGenerator([[2, 'rl'],[3, 'mt'], [1, 'ph']]);
-    var playWindow = windowGenerator(stage, 800, 1000, canvasWidth-200, canvasHeight); 
+    var goalCont  = gsnElemGenerator('goal',[[2, 'rl'],[1, 'mt'], [0, 'ph']]);
+    var sCont  = gsnElemGenerator('strategy',[[2, 'rl'],[3, 'mt'], [1, 'ph']]);
+    var sSolution  = gsnElemGenerator('solution',[[1, 'rl'],[0, 'mt'], [0, 'ph']]);
+    var playWindow = windowGenerator([{x:1, y:1}, 's'], 0.2, 1000, 2000, canvasWidth-200, canvasHeight); 
+    var ressourceWindow =  windowGenerator([ {x:0, y:1}, ''], 0.4, 200, 1000, 200, canvasHeight); 
+
+    stage.addChild(playWindow);
+    stage.addChild(ressourceWindow);
 
     playWindow.x = 0;
     playWindow.y = 0;
-
-    var ressourceWindow = windowGenerator(stage, 200, 100, 200, canvasHeight); 
-    ressourceWindow.x = 800;
+    ressourceWindow.x = canvasWidth-200;
     ressourceWindow.y = 0;
+
+   
     // initiale Goals
     goalCont.x = 100;
     goalCont.y = 50; 
-    sCont.x = 50;
-    sCont.y = 200; 
+    sCont.x = 100;
+    sCont.y = 150; 
    
-    goalCont
+    sSolution
             .on('pointerdown', onDragStart)
             .on('pointerup', onDragEnd)
             .on('pointerupoutside', onDragEnd)
             .on('pointermove', onDragMove);
 
-        
+     sCont   
+            .on('pointerdown', onDragStart)
+            .on('pointerup', onDragEnd)
+            .on('pointerupoutside', onDragEnd)
+            .on('pointermove', onDragMove);
 
-    playWindow.addChild(goalCont);
-    playWindow.addChild(sCont);
- 
-
-    strategy.x = 200; 
-    strategy.y = 200; 
+    playWindow.vpRef.addChild(goalCont);
+    playWindow.vpRef.addChild(sSolution);
+    sSolution.x = ressourceWindow.width/2-sSolution.width/2; 
+    sSolution.y = 100;  
+    ressourceWindow.vpRef.addChild(sCont);
 
     stage.interactive = false;
     stage.buttonMode = false; 
@@ -92,10 +100,12 @@ function pixiAssets() {
 
 
 // type list is of format [[number, type], [number, type]....]
-function goalGenerator(TypeList) {
+function gsnElemGenerator(ElemType, TypeList) {
 
     const textMargin = 5;
+    const elemCont = new PIXI.Container();
 
+    elemCont.interactive = true; 
     // Text style for numbers
     const style = new PIXI.TextStyle({
         fontFamily: 'Arial',
@@ -103,53 +113,34 @@ function goalGenerator(TypeList) {
         fill: '#FFFFFF'
     });
 
-    const goalCont = new PIXI.Container();
-    const goal = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/goal.png"].texture
-    );
-    
-    goalCont.addChild(goal);
+    var ressourceID;
+    var correction = 0; 
 
-    var pixiObjects = TypeList.map(symbolGenerator);
-    var layout = calcLayout(goal);
-
-    for (var i = 0; i < 3; i++)
+    switch(ElemType)
     {
-        const number = TypeList[i][0];
-        const typeID = TypeList[i][1];
+        case ('strategy'): 
+            ressourceID = "/graphics/strategy.png"; 
+            correction = 5; 
+        break;
 
-        const element = pixiObjects[i];
-        const basicText = new PIXI.Text(number.toString(), style);
-        basicText.anchor.y = 1.0; 
-        basicText.x = layout[typeID][0];
-        basicText.y = layout[typeID][1];
-        goalCont.addChild(basicText);
-       
-        element.x = basicText.x + basicText.width + textMargin;
-        element.y = basicText.y;
-       
-        goalCont.addChild(element);
+        case ('solution'):
+             ressourceID = "/graphics/solution.png"; 
+        break
+
+        case ('goal') :
+             ressourceID = "/graphics/goal.png"; 
+        break; 
+
     }
-    return goalCont;
-}
-
-function strategyGenerator(TypeList) {
-
-    const textMargin = 5;
-
-    // Text style for numbers
-    const style = new PIXI.TextStyle({
-        fontFamily: 'Arial',
-        fontSize: 14,
-        fill: '#FFFFFF'
-    });
-
-    const container = new PIXI.Container();
-    const gsnElement = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/strategy.png"].texture
-    );
    
-    container.addChild(gsnElement);
+    const gsnElement = new PIXI.Sprite(
+                PIXI.loader.resources[ressourceID].texture
+            );  
+    elemCont.addChild(gsnElement);
+    gsnElement.anchor.set(0.5);
+
+    const shiftX = gsnElement.width/2; 
+    const shiftY = gsnElement.height/2; 
 
     var pixiObjects = TypeList.map(symbolGenerator);
     var layout = calcLayout(gsnElement);
@@ -162,17 +153,16 @@ function strategyGenerator(TypeList) {
         const element = pixiObjects[i];
         const basicText = new PIXI.Text(number.toString(), style);
         basicText.anchor.y = 1.0; 
-        basicText.x = layout[typeID][0] + 5;
-        basicText.y = layout[typeID][1];
-        container.addChild(basicText);
+        basicText.x = layout[typeID][0] + correction - shiftX;
+        basicText.y = layout[typeID][1] - shiftY;
+        elemCont.addChild(basicText);
        
-        element.x = basicText.x + basicText.width + textMargin ;
+        element.x = basicText.x + basicText.width + textMargin;
         element.y = basicText.y;
        
-        container.addChild(element);
+        elemCont.addChild(element);
     }
-   
-    return container;
+    return elemCont;
 }
 
 function calcLayout(element) {
@@ -241,7 +231,8 @@ function onDragStart(event) {
     this.alpha = 0.5;
     this.dragging = true;
     prio = true; 
-    console.log("´Sprite");
+    console.log("Sprite");
+    event.stopPropagation();
 
 }
 
@@ -251,6 +242,7 @@ function onDragEnd() {
     // set the interaction data to null
     this.data = null;
     prio = false; 
+    event.stopPropagation();
 }
 
 function onDragMove() {
@@ -259,6 +251,7 @@ function onDragMove() {
         this.x = newPosition.x;
         this.y = newPosition.y;
     }
+    event.stopPropagation();
 }
 
 

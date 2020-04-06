@@ -1,24 +1,22 @@
 
+function windowGenerator(configList,  alpha, width, height, winWidth, winHeight) {
 
-function windowGenerator(stage, width, height, winWidth, winHeight) {
-
+    const window = new PIXI.Container(); 
     const viewport = new PIXI.Container();
-    const augmentLayer = new PIXI.Container();
-    const graphics = new PIXI.Graphics();
+    const marker = new PIXI.Graphics();
 
     const area = new PIXI.Sprite(
         PIXI.loader.resources["/graphics/windowarea.png"].texture
     );
-    const btUp = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/bt_scaleup.png"].texture
-    );
-    const btDown = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/bt_scaledown.png"].texture
-    );
-
-    area.alpha = 0.25;
+   
+    ///// create viewport /////
+    // indication of viewpoint area which may be much larger than camera view
+    area.alpha = alpha;
     area.width = width; 
     area.height = height; 
+    area.name = "area";
+    viewport.x = 0; 
+    viewport.y = 0;   
     viewport.interactive = true;
     viewport.buttonMode = false; 
     viewport
@@ -27,6 +25,79 @@ function windowGenerator(stage, width, height, winWidth, winHeight) {
             .on('pointerupoutside', onPointerEnd)
             .on('pointermove', onPointerMove);
           
+     
+    marker.lineStyle(2, 0xFFBD01, 1);
+    marker.drawCircle(width/2, height/2, 10);
+
+    viewport.addChild(area, marker);
+    viewport.filter = configList[0];
+    viewport.name = "viewport";
+
+    const augmentLayer = augmentGenerator(configList, width, height, winWidth, winHeight, viewport);
+     // show only what camera can see
+    viewport.mask = cameraGenerator(winWidth, winHeight);
+    augmentLayer.addChild(viewport.mask);
+    augmentLayer.name = "augment"; 
+    window.vpRef = viewport; 
+    window.addChild(viewport);
+    window.addChild(augmentLayer);
+
+    return window; 
+}
+
+function cameraGenerator(w,h) {
+    
+    const camera = new PIXI.Graphics();
+
+    camera.beginFill(0xFFFFFF,0.5);
+    camera.drawRect(0,0, w, h);
+    camera.endFill();
+
+    return camera; 
+}
+
+function augmentGenerator(configList, width, height, winWidth, winHeight, viewport){
+
+    const augmentLayer = new PIXI.Container();
+    const btUp = 0; 
+    const btDown = 1; 
+
+    for (var i = 1; i < configList.length; i++)
+    {
+
+        switch (configList[i]) {
+
+            case 's': 
+                const buttons = scaleGenerator(); 
+
+                buttons[btUp].x = winWidth - (buttons[btUp].width)*1.9; 
+                buttons[btUp].y = buttons[btUp].height*0.8; 
+                buttons[btDown].x = winWidth - (buttons[btDown].width)*0.8;     
+                buttons[btDown].y = buttons[btDown].height*0.8; 
+                augmentLayer.addChild(buttons[btUp]);
+                augmentLayer.addChild(buttons[btDown]);
+                viewport.scaling = true; 
+                break;
+            default: 
+                viewport.scaling = false; 
+        }
+    }
+    
+    augmentLayer.x = 0; 
+    augmentLayer.y = 0; 
+    augmentLayer.vpRef = viewport; 
+
+    return augmentLayer; 
+}
+
+function scaleGenerator () {
+
+    const btUp = new PIXI.Sprite(
+        PIXI.loader.resources["/graphics/bt_scaleup.png"].texture
+    );
+    const btDown = new PIXI.Sprite(
+        PIXI.loader.resources["/graphics/bt_scaledown.png"].texture
+    );
 
     btUp.interactive = true;
     btUp.alpha = 0.7;
@@ -49,31 +120,8 @@ function windowGenerator(stage, width, height, winWidth, winHeight) {
         .on('pointerover', onBtDownOver)
         .on('pointerout', onBtDownUp);
 
-    viewport.addChild(area);
+   return [btUp, btDown];
 
-    graphics.lineStyle(2, 0xBABABA, 1);
-    graphics.drawRect(0,0, width, height);
-    graphics.lineStyle(2, 0xFFBD01, 1);
-    graphics.drawCircle(width/2, height/2,10);
-    viewport.addChild(graphics);
-    //viewport.pivot.x = viewport.width/2; 
-    //viewport.pivot.y = viewport.height/2; 
-    viewport.x = 0; 
-    viewport.y = 0; 
-
-    btUp.x = winWidth - (btUp.width)*2.0; 
-    btUp.y = btUp.height*0.8; 
-    btDown.x = winWidth - (btDown.width)*0.8;     
-    btDown.y = btUp.height*0.8; 
-
-    augmentLayer.addChild(btUp);
-    augmentLayer.addChild(btDown);
-    augmentLayer.areaRef = viewport; 
-
-    stage.addChild(viewport);
-    stage.addChild(augmentLayer);
-
-    return viewport; 
 }
 
 ////////////////////// scaling / dragging call backs for touch /////////////////////////
@@ -98,7 +146,7 @@ function onPointerStart(event) {
     this.touchpoints.push([this.data.global.x, this.data.global.y, this.data.identifier]);
     // scale
     this.lastdistance = 0; 
-    prio = true; 
+    prio = true;
 }
 
 function onPointerEnd() {
@@ -110,11 +158,13 @@ function onPointerEnd() {
     prio = false; 
 }
 
-function onPointerMove() {
+function onPointerMove(event) {
 
     const px = 0;
     const py = 1; 
     const pID = 2; 
+    const filterX = this.filter.x;
+    const filterY = this.filter.y; 
 
     if (this.dragging) {
         // mulittouch or not?
@@ -122,32 +172,34 @@ function onPointerMove() {
         {
             // only one point in list, ths last touchpoint
             
-            this.x -= (this.touchpoints[0][px] - this.data.global.x);
-            this.y -= (this.touchpoints[0][py] - this.data.global.y);
+            this.x -= (this.touchpoints[0][px] - this.data.global.x) * filterX;
+            this.y -= (this.touchpoints[0][py] - this.data.global.y) * filterY;
             this.touchpoints[0][px] = this.data.global.x; 
             this.touchpoints[0][py] = this.data.global.y; 
         }
         else
         {
-            const index = this.touchpoints.findIndex(selectPoint, this.data);
-            this.touchpoints[index][px] = this.data.global.x; 
-            this.touchpoints[index][py] = this.data.global.y;
-           
-            const deltax = Math.abs(this.touchpoints[0][px]-this.touchpoints[1][px]);
-            const deltay = Math.abs(this.touchpoints[0][py]-this.touchpoints[1][py]);
+            if (this.scaling) {
+                const index = this.touchpoints.findIndex(selectPoint, this.data);
+                this.touchpoints[index][px] = this.data.global.x; 
+                this.touchpoints[index][py] = this.data.global.y;
+               
+                const deltax = Math.abs(this.touchpoints[0][px]-this.touchpoints[1][px]);
+                const deltay = Math.abs(this.touchpoints[0][py]-this.touchpoints[1][py]);
 
-            const distance = (deltax + deltay)/this.scale.x;
-            
-            if (this.lastdistance == 0)
-            {
-                this.lastdistance = distance; 
+                const distance = (deltax + deltay)/this.scale.x;
+                
+                if (this.lastdistance == 0)
+                {
+                    this.lastdistance = distance; 
+                }
+
+                const scaleDelta = (distance/this.lastdistance)-1; // distance to 1.0
+               
+                this.scale.x += this.scale.x*scaleDelta;
+                this.scale.y += this.scale.y*scaleDelta;
+                //console.log("Scale", this.lastdistance, distance, scaleDelta,  this.scale.x);
             }
-
-            const scaleDelta = (distance/this.lastdistance)-1; // distance to 1.0
-           
-            this.scale.x += this.scale.x*scaleDelta;
-            this.scale.y += this.scale.y*scaleDelta;
-            //console.log("Scale", this.lastdistance, distance, scaleDelta,  this.scale.x);
         }
     }
 }
@@ -166,10 +218,10 @@ function selectPoint(value, index, array)
 //////////////////////////////////// button callbacks
 
 function onBtUpDown () {
-    
-    const area = this.parent.areaRef;
-    area.scale.x += 0.05;
-    area.scale.y += 0.05;
+
+    const vp = this.parent.vpRef; 
+    vp.scale.x += 0.05;
+    vp.scale.y += 0.05;
     this.scale.set(1.2);
 }
 
@@ -186,11 +238,10 @@ function onBtUpUp() {
 
 function onBtDownDown () {
     
-    const area = this.parent.areaRef;
-    area.scale.x -= 0.05;
-    area.scale.y -= 0.05;
+    const vp = this.parent.vpRef;
+    vp.scale.x -= 0.05;
+    vp.scale.y -= 0.05;
     this.scale.set(1.2);
-    //console.log("parent:" , area.scale.x, area.scale.y);
 }
 
 function onBtDownOver () {
