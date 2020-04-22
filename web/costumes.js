@@ -1,100 +1,151 @@
-//Create a Pixi Application
-var stage; 
-var playWindow; 
 
-function pixiStart() {
+// subtree = body
+// [goal, strategy, [subtrees]]
+// das müssen die Elemente der Layer sein
+// goal ist der Kopf des Subtrees
 
-    stage = new PIXI.Container();
+// [[id, attribute, layer], [id, attribure, layer], [subtrees]]
+// räumliche ausdehnnung der elemente
+// körper, position
+// parent is PIxi Container
+// processierter Subtree
+// [parent, goal, strategy, [List]] wobei goal Strategy Pixiobjekte sind
+function embodySubtree(body, x,y, container, subtree){
+
+    const goal = subtree[0];
+    const strategy = subtree[1];
+    const subsubtree = subtree[2];
+
+    const glName = goal[0];
+    const glAttributes = goal[1];
+    const glLayer = goal[2];
+    var line; 
+
+    const goalCont  = gsnElemGenerator('goal', glName, glAttributes);
+    goalCont.x = x; 
+    goalCont.y = y; 
+    goalCont.level = glLayer; 
+    goalCont.k = kFactor(glLayer, layerheight);
+    goalCont.id = glName; 
    
-    renderer = PIXI.autoDetectRenderer( {view:document.getElementById("game-canvas"), 
-                                        width:1000, 
-                                        height:800}
-            );
-   
-    PIXI.loader
-      .add([
-        "/graphics/solution.png",
-        "/graphics/strategy.png",
-        "/graphics/goal.png",
-        "/graphics/background.png",
-        "/graphics/windowarea.png",
-        "/graphics/auge.png",
-        "/graphics/hand.png",
-        "/graphics/ruler.png",
-        "/graphics/bt_scaleup.png",
-        "/graphics/bt_scaledown.png",
-      ])
-      .load(pixiAssets);
-      prio = false; 
-}
+  
+    body[0] = goalCont; 
+    body[1] = []; 
+    body[2] = []; 
+    body[3] = 0; 
+
+    //container.addChild(goalCont);
+    var strategyCont; 
+
+    if (strategy.length > 0){
+        const stName = strategy[0];
+        const stAttributes = strategy[1];
+        const stLayer = strategy[2];
+
+        strategyCont  = gsnElemGenerator('strategy', stName, stAttributes);
+        strategyCont.x = x; 
+        strategyCont.y = y + 5; 
+        strategyCont.level = stLayer; 
+       
+        strategyCont.k = kFactor(stLayer, layerheight);
+       
+       
+        line = new PIXI.Graphics();
+        line.name = "e";
+        // jetzt noch die Linie
+        line.lineStyle(5, 0x5F5F5A, 10);
+        line.moveTo(goalCont.x, goalCont.y);
+        line.lineTo(strategyCont.x, strategyCont.y);
+        container.addChild(line);
+        strategyCont.incomming = line;
+
+        body[1] = strategyCont; 
+        container.addChild(strategyCont);
+    }
     
-function pixiAssets() {
-    solution = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/solution.png"].texture
-    );
+      container.addChild(goalCont);
+
+    var subtreeList = []; 
+    var dx = [0, 10, -10, 15, -15, 20, -20, 25, -25, 30, -30];
+    var v = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
+
+    for (var i = 0; i < subsubtree.length; i++) {
+        
+         line = new PIXI.Graphics();
+          container.addChild(line);
+        //console.log(subsubtree);
+        const subBody = embodySubtree([], x+dx[i], y + 20, container, subsubtree[i]);
+        subBody[0].v = v[i];  //
+        subtreeList[i] = subBody.slice();
+        body[3] += subBody[0].mass;  
+        
+       
+        line.name = "e";
+        line.lineStyle(5, 0x5F5F5A, 10);
+        line.moveTo(strategyCont.x, strategyCont.y);
+        line.lineTo(subBody[0].x, subBody[0].y);
+       
+        subBody[0].incomming = line; 
+    }
+
+    if (body[3] == 0) {
+        body[3] = goalCont.mass; 
+    } else
+    {
+        body[3] *= 0.9; 
+    }
+
+    body[2] = subtreeList; 
+    bodylist[goalCont.id]  = body; 
    
-    strategy = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/strategy.png"].texture
-    );
-    background = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/background.png"].texture
-    );
+    add2LayerList(glLayer, body);
+
+    return body; 
    
-    const canvasWidth = document.getElementById("game-canvas").width;
-    const canvasHeight = document.getElementById("game-canvas").height;
 
-    // the bottom child
-    stage.addChild(background);
-
-    var goalCont  = gsnElemGenerator('goal',[[2, 'rl'],[1, 'mt'], [0, 'ph']]);
-    var sCont  = gsnElemGenerator('strategy',[[2, 'rl'],[3, 'mt'], [1, 'ph']]);
-    var sSolution  = gsnElemGenerator('solution',[[1, 'rl'],[0, 'mt'], [0, 'ph']]);
-   
-    var playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
-                                        1000, 2000, canvasWidth-200, canvasHeight); 
-    var ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
-                                            200, 1000, 200, canvasHeight); 
-
-    stage.addChild(playWindow);
-    stage.addChild(ressourceWindow);
-
-    playWindow.x = 0;
-    playWindow.y = 0;
-    ressourceWindow.x = canvasWidth-200;
-    ressourceWindow.y = 0;
-
-   
-    // initiale Goals
-    goalCont.x = 100;
-    goalCont.y = 50; 
-    sCont.x = 100;
-    sCont.y = 150; 
-
-    playWindow.vpRef.addChild(goalCont);
-    playWindow.vpRef.addChild(sSolution);
-    sSolution.x = ressourceWindow.width/2-sSolution.width/2; 
-    sSolution.y = 100;  
-
-    // vprRef is the reference to the viewport where all elements resides (are child of)
-    ressourceWindow.vpRef.addChild(sCont);
-    ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
-
-    stage.interactive = false;
-    stage.buttonMode = false; 
-   // stage.on('mousedown', pointerDown);
-  //  stage.on('mouseup', pointerUp);
-   // stage.on('mousemove', pointerMove);
+    
     
 
-    background.x = 0; 
-    background.y = 0; 
-
-    requestAnimationFrame(pixiUpdate);
 }
 
+function bodyChilds(id) {
+
+    const body = bodylist[id];
+    if (body){
+        return body[2];
+    }
+    else
+    {
+        return []; 
+    }
+}
+
+function bodyMid(id) {
+
+    const body = bodylist[id];
+    return body[0].x; // x position des goals = kopf des bodys
+
+}
+
+function add2LayerList(layerNr, body)
+{
+
+    if (layerlist[layerNr] == null)
+    {
+        layerlist[layerNr] = []; 
+    }
+    layerlist[layerNr].push(body);
+    
+}
+
+function kFactor(level, layerheight) {
+
+    const term = -3*level*layerheight;
+    return 20/term; 
+}
 
 // type list is of format [[number, type], [number, type]....]
-function gsnElemGenerator(ElemType, TypeList) {
+function gsnElemGenerator(ElemType, name, TypeList) {
 
     const textMargin = 5;
     const elemCont = new PIXI.Container();
@@ -115,14 +166,17 @@ function gsnElemGenerator(ElemType, TypeList) {
         case ('strategy'): 
             ressourceID = "/graphics/strategy.png"; 
             correction = 5; 
+            elemCont.mass = 1000; 
         break;
 
         case ('solution'):
              ressourceID = "/graphics/solution.png"; 
+             elemCont.mass = 1000; 
         break
 
         case ('goal') :
              ressourceID = "/graphics/goal.png"; 
+             elemCont.mass = 1000; 
         break; 
 
     }
@@ -133,6 +187,7 @@ function gsnElemGenerator(ElemType, TypeList) {
     elemCont.addChild(gsnElement);
     elemCont.name = ElemType; 
     gsnElement.anchor.set(0.5);
+    gsnElement.name = name; 
     elemCont 
             .on('pointerdown', onDragStart)
             .on('pointerup', onDragEnd)
@@ -214,91 +269,3 @@ function symbolGenerator(elem) {
     return type;
 }
 
-function pixiUpdate() {
-
-    //sSprite.x += 0.1;
-
-    renderer.render(stage);
-    requestAnimationFrame(pixiUpdate);
-}
-
-
-/////////////////////////////////// Event Handling ///////////////////////////////////////////////
-
-function onDragStart(event) {
-    // store a reference to the data
-    // the reason for this is because of multitouch
-    // we want to track the movement of this particular touch
-    this.data = event.data;
-    this.alpha = 0.5;
-    this.dragging = true;
-    prio = true; 
-
-    console.log("Sprite");
-    event.stopPropagation();
-
-}
-
-function onDragEnd() {
-    this.alpha = 1;
-    this.dragging = false;
-    // set the interaction data to null
-    this.data = null;
-    prio = false; 
-    //console.log("drag end");
-    event.stopPropagation();
-}
-
-function onDragMove() {
-    if (this.dragging) {
-        const newPosition = this.data.getLocalPosition(this.parent);
-        this.x = newPosition.x;
-        this.y = newPosition.y;
-    }
-    if (this.x < 20)
-    {
-        this.parent.dragReceiver.addChild(this); 
-        this.x = 800;
-        this.y = 100;
-        this.dragging = true; 
-    }
-    //console.log(this.x, this.parent.name);
-    event.stopPropagation();
-}
-
-
-function pointerMove(event) {
-    if (this.dragging && !prio ) {
-            const newPosition = this.data.global;
-            aNew.x = newPosition.x;
-            aNew.y = newPosition.y;
-    }
-}
-
-function pointerDown(event) {
-   
-    console.log("Back");
-
-    if (!prio)
-    {
-        aNew = strategyGenerator([[2, 'rl'],[1, 'mt'], [3, 'ph']]);
-        this.data = event.data;
-        aNew.alpha = 0.5;
-        aNew.pivot.x = aNew.width / 2;
-        aNew.pivot.y = aNew.height / 2;
-        this.dragging = true;
-
-        const newPosition = this.data.global; 
-        aNew.x = newPosition.x; 
-        aNew.y = newPosition.y; 
-        stage.addChild(aNew);
-    }
-}
-
-function pointerUp(event) {
-    if (this.dragging && !prio )
-    {
-        this.dragging = false;
-        aNew.alpha = 1.0; 
-    }
-}

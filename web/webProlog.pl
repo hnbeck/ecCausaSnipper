@@ -19,6 +19,10 @@
 
 % setup the initial next player and the deck costume
 init :-
+	holdTerm(1, noGSN),
+	newGSN(goal, [[4, 'rl'],[3, 'mt'], [10, 'ph']], NewGoal),
+	holdTerm( tree(NewGoal, 0, 0), gsntree),
+	writeHTML('Tauhtml',NewGoal, _),
 	write('Tau Prolog: done').
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -43,9 +47,44 @@ init :-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
-% Structure Elements of visual representation = costumes
+% Structure Elements 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% GL = Goal, St = Strukture, So = Solution, 
+
+% all GSN Elements: gsnElement(ID, charge, Type)
+goal(1,1, Layout).
+strategy(1,1, Layout).
+solution(1,0, Layout).
+
+subtree(goal(A,B,C), Parent).
+subtree(goal(A,B,C), solution(A,B,C), Parent).
+subtree(goal(A,B,C), strategy(A,B,C), [], Parent).
+subtree(goal(A,B,C), strategy(A,B,C), SubtreeList, Parent).
+
+newGSN(Type, Layout, Element) :-
+	state(noGSN, No),
+	No2 is No + 1, 
+	holdTerm(No2, noGSN),
+	Element =.. [Type, No2, 1, Layout].
+
+goalAsSubtree(goal(A,B,C), Parent, Subtree) :-
+	subtree(goal(A,B,C), Parent).
+
+% a goal gets a strategy
+subtreePlusSt(subtree(Goal, Parent), Strategy, Subtree2) :-
+	Subtree2 = subtree(Goal, Strategy, [], Parent).
+
+% a subtree gets another goal
+subtreePlusGl(Subtree, NewGoal, Subtree2) :-
+	Subtree = subtree(Goal, strategy(A,B,C), SubtreeList, Parent),
+	goalAsSubTree(NewGoal, Parent, NewSubTree),
+	append(SubtreeList, [NewSubTree], SubtreeList2), 
+	Subtree2 = subtree(Goal, strategy(A,B,C), SubtreeList2, Parent),
+	resize(Subtree2).
+
+
 
 
 
