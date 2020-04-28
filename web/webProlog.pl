@@ -51,13 +51,7 @@ init :-
 % GL = Goal, St = Strukture, So = Solution, 
 
 newTree(Tree) :-
-	explanation(argument(10, rl),
-				argument(4, mt), 
-				argument(6, ph),
-				Explanation),
-	body(1,1000, 0, Body),
-	newGSN(goal, Body, Explanation, Goal),
-	embodyGoal(Goal, JSObject),
+	realGoal(1, Goal, JSObject),
 	goalAsSubtree(Goal, root, root, Tree),
 	embodySubtree(Tree, JSObject, 1),
 	holdTerm( Tree, gsnTree),
@@ -144,19 +138,35 @@ newGSN(Type, Body, Explanation, Element) :-
 	holdTerm(No2, noGSNElement),
 	Element =.. [Type, No2, Body, Explanation].
 
-% new goal bedeutet new subtree - immer
-newGoal(Level, Explanation, Parent, Parent2, NewSubtree) :-
-	body(Level, 1000, _, Body),
+% in future explanation will be some kind of randomness
+realGoal(Level, Goal, JSObject) :-
+	explanation(argument(10, rl),
+				argument(4, mt), 
+				argument(6, ph),
+				Explanation),
+	body(Level, 1000, 0, Body),
 	newGSN(goal, Body, Explanation, Goal),
-	embodyGoal(Goal, JSObject),
+	embodyGoal(Goal, JSObject).
+
+% in future explanation is defined from other place
+realStrategy(Level, Strategy, JSObject) :-
+	explanation(argument(10, rl),
+				argument(10, mt), 
+				argument(10, ph),
+				Explanation),
+	body(Level, 1000, 0, Body),
+	newGSN(strategy, Body, Explanation, Goal),
+	embodyStrategy(Goal, JSObject).
+
+% new goal bedeutet new subtree - immer
+newGoal(Level, Parent, Parent2, NewSubtree) :-
+	realGoal(Level, Goal, JSObject),
 	goalAsSubtree(Goal, Parent, Parent2, NewSubtree),
 	embodySubtree(NewSubtree, JSObject, Level),
 	updateEmbodyChild(Parent2, NewSubtree).
 
-newStrategy(Level, Explanation, Subtree, Subtree2) :-
-	body(Level, 1000, _, Body),
-	newGSN(strategy, Body, Explanation, Strategy),
-	embodyStrategy(Strategy, JSObject),
+newStrategy(Level, Subtree, Subtree2) :-
+	realStrategy(Level, Strategy, JSObject),
 	subtreePlusSt(Subtree, Strategy, Subtree2),
 	updateEmbodySubtree(Subtree2,  JSObject).
 
@@ -167,31 +177,28 @@ newStrategy(Level, Explanation, Subtree, Subtree2) :-
 % StID is subtree ID = ID of head goal of this subtree
 addStrategy(StID) :-
 	state(gsnTree, Tree),
-	explanation(argument(10, rl),
-				argument(4, mt), 
-				argument(6, ph),
-				Explanation),
-	updateSubtree(StID, Explanation, 2, Level2, Tree, Tree2),
+	updateSubtree(StID, 2, Level2, Tree, Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
-updateSubtree(ID, E, Level, Level, Tree, Tree2) :-
+updateSubtree(ID, Level, Level, Tree, Tree2) :-
 	subtree(id, Tree, ID),
-	newStrategy(Level, E, Tree, Tree2),!.
+	newStrategy(Level, Tree, Tree2),!.
 
-updateSubtree(ID, E, Level, Level2, Tree, Tree2) :-
+updateSubtree(ID, Level, Level2, Tree, Tree2) :-
 	subtree(childs, Tree, Childs),
-	updateChilds(ID, E, Childs, Level, Level2, Tree, Tree2).
+	updateChilds(ID, Childs, Level, Level2, Tree, Tree2).
 
 % update the childs of a tree
-updateChilds(ID, E, [], Level, Level, Tree, Tree) :- false.
+updateChilds(ID, [], Level, Level, Tree, Tree) :- false.
 
-updateChilds(ID, E, [H | T], Level, Level2, Tree, Tree2) :-
-	updateSubTree(ID, E, H,  Level, Level2, Tree, Tree2),!.
+% go over all child subtrees
+updateChilds(ID, [H | T], Level, Level2, Tree, Tree2) :-
+	updateSubTree(ID, H,  Level, Level2, Tree, Tree2),!.
 
-updateChilds(ID, E, [H | T], Level, Level4, Tree, Tree2) :-
+updateChilds(ID, [H | T], Level, Level4, Tree, Tree2) :-
 	Level2 is Level + 1, 
-	updateChilds(ID, E, T, Level3, Level4, Tree, Tree2).
+	updateChilds(ID, T, Level3, Level4, Tree, Tree2).
 
 
 
