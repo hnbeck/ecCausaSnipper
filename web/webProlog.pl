@@ -19,11 +19,8 @@
 
 % setup the initial next player and the deck costume
 init :-
-	holdTerm(1, noGSN),
-	newGSN(goal, [[4, 'rl'],[3, 'mt'], [10, 'ph']], NewGoal),
-	holdTerm( tree(NewGoal, 0, 0), gsntree),
-	writeHTML('Tauhtml',NewGoal, _),
-	write('Tau Prolog: done').
+	holdTerm(0, noGSNElement),
+	write('Tau Prolog: done3').
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -53,39 +50,173 @@ init :-
 
 % GL = Goal, St = Strukture, So = Solution, 
 
-% all GSN Elements: gsnElement(ID, charge, Type)
-goal(1,1, Layout).
-strategy(1,1, Layout).
-solution(1,0, Layout).
+newTree(Tree) :-
+	explanation(argument(10, rl),
+				argument(4, mt), 
+				argument(6, ph),
+				Explanation),
+	body(1,1000, 0, Body),
+	newGSN(goal, Body, Explanation, Goal),
+	embodyGoal(Goal, JSObject),
+	goalAsSubtree(Goal, root, root, Tree),
+	embodySubtree(Tree, JSObject, 1),
+	holdTerm( Tree, gsnTree),
+	addStrategy(1).
 
-subtree(goal(A,B,C), Parent).
-subtree(goal(A,B,C), solution(A,B,C), Parent).
-subtree(goal(A,B,C), strategy(A,B,C), [], Parent).
-subtree(goal(A,B,C), strategy(A,B,C), SubtreeList, Parent).
+showTree :-
+	status(gsnTree, Tree),
+	writeHTML('Tauout', Tree,_).
 
-newGSN(Type, Layout, Element) :-
-	state(noGSN, No),
+% the element of a goal and a stragegy are the explanation types
+% rl = rule = normative setting, mt= measurement, ph = phenomenon.
+argument(Number, rl, [Number, rl]).
+argument(Number, mt, [Number, mt]).
+argument(Number, ph, [Number, ph]).
+
+explanation(argument(N1, B1), 
+			argument(N2, B2), 
+			argument(N3, B3), [A, B, C]) :-
+	argument(N1, B1, A), 
+	argument(N2, B2, B),
+	argument(N3, B3, C).
+
+
+% physic body (masse, k-Factor, rotation speed)
+%body(Mass, KFac, V).
+% body/2
+body(body(Mass, KFac, V), [Mass, KFac, V]).
+% body/4
+body(Level, Mass, V, body(Mass, KFac, V)) :-
+	prop('kFactor', JSFkt),
+	apply(JSFkt, [Level], KFac).
+
+
+% all GSN Elements: gsnElement(ID, body, Explanation, asList)
+%goal(1, body(1000, KFac, V), Explanation).
+%strategy(1, body(1000, KFac, V), Explanation).
+%solution(1, body(1000, KFac, V), Explanation).
+goal(body, goal(_, Body, _), Body).
+goal(body, Body, goal(ID, _, E), goal(ID, Body, E)).
+goal(exp, E, goal(ID, B, _), goal(ID, B, E)).
+goal(exp, goal(_, _, E), E).
+goal(id, goal(ID, _, _), ID).
+goal(mass, goal(_, body(M, _, _), _), M).
+
+goal(level, Goal, Level, Goal2) :-
+	goal(body, Goal, body(Mass, _, V)),
+	body(Level, Mass, V, Body),
+	goal(body, Body, Goal, Goal2).
+
+
+strategy(body, strategy(_, Body, _), Body).
+strategy(body, Body, strategy(ID, _, E), strategy(ID, Body, E)).
+strategy(exp, E, strategy(ID, B, _), strategy(ID, B, E)).
+strategy(exp, strategy(_, _, E), E).
+strategy(id, strategy(ID, _, _), ID).
+strategy(mass, strategy(_, body(M, _, _), _), M).
+
+strategy(level, Strategy, Level, Strategy2) :-
+	strategy(body, Strategy, body(Mass, _, V)),
+	body(Level, Mass, V, Body),
+	strategy(body, Body, Strategy, Strategy2).
+
+
+% subtree definition
+% this is per definition the root of the tree
+%subtree(goal(A,B,C), [], [], Mass, root).
+%subtree(goal(A,B,C), [], [], Mass, Parent).
+%subtree(goal(A,B,C), strategy(A,B,C), [], Mass, Parent).
+%subtree(goal(A,B,C), strategy(A,B,C), SubtreeList, Mass, Parent).
+
+subtree(id, subtree(goal(A, _, _), _, _, _, _), A).
+subtree(goal, subtree(A, _, _,  _, _), A).
+subtree(str, subtree(_, A, _,  _, _), A).
+subtree(childs, subtree(_, _, A, _, _), A).
+subtree(childs, Childs, subtree(G, S, _, M, P), subtree(G, S, Childs, M, P)).
+subtree(mass, subtree(_, _, _ , A, _), A).
+subtree(mass, M, subtree(G, S, C, _, P), subtree(G, S, C, M, P)).
+
+%%%%%%%%%%%%%%%%%%%%% Generators %%%%%%%%%%%%%%%%%%%%%%%%
+
+newGSN(Type, Body, Explanation, Element) :-
+	state(noGSNElement, No),
 	No2 is No + 1, 
-	holdTerm(No2, noGSN),
-	Element =.. [Type, No2, 1, Layout].
+	holdTerm(No2, noGSNElement),
+	Element =.. [Type, No2, Body, Explanation].
 
-goalAsSubtree(goal(A,B,C), Parent, Subtree) :-
-	subtree(goal(A,B,C), Parent).
+% new goal bedeutet new subtree - immer
+newGoal(Level, Explanation, Parent, Parent2, NewSubtree) :-
+	body(Level, 1000, _, Body),
+	newGSN(goal, Body, Explanation, Goal),
+	embodyGoal(Goal, JSObject),
+	goalAsSubtree(Goal, Parent, Parent2, NewSubtree),
+	embodySubtree(NewSubtree, JSObject, Level),
+	updateEmbodyChild(Parent2, NewSubtree).
 
-% a goal gets a strategy
-subtreePlusSt(subtree(Goal, Parent), Strategy, Subtree2) :-
-	Subtree2 = subtree(Goal, Strategy, [], Parent).
-
-% a subtree gets another goal
-subtreePlusGl(Subtree, NewGoal, Subtree2) :-
-	Subtree = subtree(Goal, strategy(A,B,C), SubtreeList, Parent),
-	goalAsSubTree(NewGoal, Parent, NewSubTree),
-	append(SubtreeList, [NewSubTree], SubtreeList2), 
-	Subtree2 = subtree(Goal, strategy(A,B,C), SubtreeList2, Parent),
-	resize(Subtree2).
+newStrategy(Level, Explanation, Subtree, Subtree2) :-
+	body(Level, 1000, _, Body),
+	newGSN(strategy, Body, Explanation, Strategy),
+	embodyStrategy(Strategy, JSObject),
+	subtreePlusSt(Subtree, Strategy, Subtree2),
+	updateEmbodySubtree(Subtree2,  JSObject).
 
 
+%%%%%%%%%%%%%%%%%%%% modifications %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% in this form more a matter of test
+% StID is subtree ID = ID of head goal of this subtree
+addStrategy(StID) :-
+	state(gsnTree, Tree),
+	explanation(argument(10, rl),
+				argument(4, mt), 
+				argument(6, ph),
+				Explanation),
+	updateSubtree(StID, Explanation, 2, Level2, Tree, Tree2),
+	holdTerm(Tree2, gsnTree).
+
+%%% go througt the tree
+updateSubtree(ID, E, Level, Level, Tree, Tree2) :-
+	subtree(id, Tree, ID),
+	newStrategy(Level, E, Tree, Tree2),!.
+
+updateSubtree(ID, E, Level, Level2, Tree, Tree2) :-
+	subtree(childs, Tree, Childs),
+	updateChilds(ID, E, Childs, Level, Level2, Tree, Tree2).
+
+% update the childs of a tree
+updateChilds(ID, E, [], Level, Level, Tree, Tree) :- false.
+
+updateChilds(ID, E, [H | T], Level, Level2, Tree, Tree2) :-
+	updateSubTree(ID, E, H,  Level, Level2, Tree, Tree2),!.
+
+updateChilds(ID, E, [H | T], Level, Level4, Tree, Tree2) :-
+	Level2 is Level + 1, 
+	updateChilds(ID, E, T, Level3, Level4, Tree, Tree2).
+
+
+
+
+goalAsSubtree(Goal, root, _, Subtree) :-
+	goal(mass, Goal, M),
+	Subtree = subtree(Goal, [], [], M, root),!. 
+
+goalAsSubtree(Goal, Parent, Parent3, Subtree) :-
+	goal(mass, Goal, M),
+	Subtree = subtree(Goal, [], [], M, Parent), 
+	subtree(childs, Parent, Childs), 
+	goal(mass, Parent, M2),
+	M3 is M2 + M, 
+	subtree(mass, M3, Parent, Parent2),
+	append(Childs, [Subtree], Childs2), 
+	subtree(childs, Child2, Parent2, Parent3).
+
+
+% a goal gets a strategy, means the related subtree gets the strategy
+% per definition there cannot be childs
+subtreePlusSt(subtree(Goal, [], [], M, Parent), Strategy, Subtree2) :-
+	strategy(mass, Strategy, M2),
+	M3 is M + M2, 
+	Subtree2 = subtree(Goal, Strategy, [], M3, Parent).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -105,6 +236,45 @@ msg2JS(DOMId) :-
 	state(msg, Msg),
 	writeHTML(DOMId, Msg, _).
 
+% generate PIXI object from this
+embodyGoal(Goal, JSObject) :-
+	goal(id, Goal, ID),
+	goal(body, Goal, Body),
+	goal(exp, Goal, E), 
+	body(Body, BList),
+	prop('gsnElemGenerator', JSFkt),
+	apply(JSFkt, ['goal', ID, BList, E], JSObject).
+
+% generate Pixi Object from this
+embodyStrategy(Strategy, JSObject) :-
+	strategy(id, Strategy, ID),
+	strategy(body, Strategy, Body),
+	strategy(exp, Strategy, E),
+	body(Body, BList),
+	prop('gsnElemGenerator', JSFkt),
+	apply(JSFkt, ['strategy', ID, BList, E], JSObject).
+
+% without stragegy there can be no childs
+embodySubtree(subtree(Goal, [], [], _, _), JSObject,  Level) :-
+	goal(id, Goal, ID),
+	goal(mass, Goal, Mass),
+	ST = [JSObject, [], [], Mass],
+	prop('addSubtree', JSFkt2),
+	apply(JSFkt2, [Level, ST, ID], _),!.
+
+% thats the pattern if a new strategy is there
+	
+updateEmbodyChild(Parent2, NewSubtree) :-
+	subtree(id, Parent2, ID),
+	subtree(id, NewSubtree, NewID),
+	prop('updateSubtreeChild', JSFkt),
+	apply(JSFkt, [ID, NewID], _).
+
+updateEmbodySubtree(Subtree, JSObject) :-
+	subtree(id, Subtree, ID),
+	subtree(mass, Subtree, M),
+	prop('updateSubtreeStrgy', JSFkt),
+	apply(JSFkt, [ID, JSObject, M], _).
 
 % write the query term in a non visible DOM element where it can be accessed
 % at JS Level
@@ -114,6 +284,7 @@ writeHTML(ID, Term, HTMLString) :-
 	get_by_id(ID, HTML),
 	open(HTML, write, Stream), 
 	write(Stream, Term), 
+	write(Stream, '\n'),
 	close(Stream),
 	get_html(HTML, HTMLString).
 

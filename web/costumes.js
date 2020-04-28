@@ -4,149 +4,172 @@
 // das müssen die Elemente der Layer sein
 // goal ist der Kopf des Subtrees
 
-// [[id, attribute, layer], [id, attribure, layer], [subtrees]]
-// räumliche ausdehnnung der elemente
-// körper, position
-// parent is PIxi Container
-// processierter Subtree
-// [parent, goal, strategy, [List]] wobei goal Strategy Pixiobjekte sind
-function embodySubtree(body, x,y, container, subtree){
+// layer is a list of subtrees, each subtree has a body
+// layerlist = [subtree1, subtree2....], with index = layer no
+var layerList = []; 
 
-    const goal = subtree[0];
-    const strategy = subtree[1];
-    const subsubtree = subtree[2];
+// subtreeList is a list of all subtrees, 
+// describing the embodyment of a subtree
+// subtree = [goal, strategy, [Subtrees], mass], this are the PIXI objects
+// index in subtreeList = goal.id; 
+var subtreeList = []; // is in old code the body[]
 
-    const glName = goal[0];
-    const glAttributes = goal[1];
-    const glLayer = goal[2];
-    var line; 
+var layerheight = 100; //default 
 
-    const goalCont  = gsnElemGenerator('goal', glName, glAttributes);
-    goalCont.x = x; 
-    goalCont.y = y; 
-    goalCont.level = glLayer; 
-    goalCont.k = kFactor(glLayer, layerheight);
-    goalCont.id = glName; 
+// einige wichtige Indizes
+const iMass = 0; 
+const iKFact = 1; 
+const iV = 2; 
+
+// this function will be replaced by Prolog
+// function embodySubtree(body, x,y, container, subtree){
+
+//     const goal = subtree[0];
+//     const strategy = subtree[1];
+//     const subsubtree = subtree[2];
+
+//     const glName = goal[0];
+//     const glAttributes = goal[1];
+//     const glLayer = goal[2];
+//     var line; 
+
+//     // masse ist eine strukturelle Größe wird zur eigenschaft
+
+//     const goalCont  = gsnElemGenerator('goal', glName, glAttributes);
+//     goalCont.x = x; 
+//     goalCont.y = y; 
+//     goalCont.level = glLayer; 
+//     goalCont.k = kFactor(glLayer, layerheight);
+//     goalCont.id = glName; 
    
   
-    body[0] = goalCont; 
-    body[1] = []; 
-    body[2] = []; 
-    body[3] = 0; 
+//     body[0] = goalCont; 
+//     body[1] = []; 
+//     body[2] = []; 
+//     body[3] = 0; 
 
-    //container.addChild(goalCont);
-    var strategyCont; 
+//     //container.addChild(goalCont);
+//     var strategyCont; 
 
-    if (strategy.length > 0){
-        const stName = strategy[0];
-        const stAttributes = strategy[1];
-        const stLayer = strategy[2];
+//     if (strategy.length > 0){
+//         const stName = strategy[0];
+//         const stAttributes = strategy[1];
+//         const stLayer = strategy[2];
 
-        strategyCont  = gsnElemGenerator('strategy', stName, stAttributes);
-        strategyCont.x = x; 
-        strategyCont.y = y + 5; 
-        strategyCont.level = stLayer; 
+//         strategyCont  = gsnElemGenerator('strategy', stName, stAttributes);
+//         strategyCont.x = x; 
+//         strategyCont.y = y + 5; 
+//         strategyCont.level = stLayer; 
        
-        strategyCont.k = kFactor(stLayer, layerheight);
+//         strategyCont.k = kFactor(stLayer, layerheight);
        
        
-        line = new PIXI.Graphics();
-        line.name = "e";
-        // jetzt noch die Linie
-        line.lineStyle(5, 0x5F5F5A, 10);
-        line.moveTo(goalCont.x, goalCont.y);
-        line.lineTo(strategyCont.x, strategyCont.y);
-        container.addChild(line);
-        strategyCont.incomming = line;
+//         line = new PIXI.Graphics();
+//         line.name = "e";
+//         // jetzt noch die Linie
+//         line.lineStyle(5, 0x5F5F5A, 10);
+//         line.moveTo(goalCont.x, goalCont.y);
+//         line.lineTo(strategyCont.x, strategyCont.y);
+//         container.addChild(line);
+//         strategyCont.incomming = line;
 
-        body[1] = strategyCont; 
-        container.addChild(strategyCont);
-    }
+//         body[1] = strategyCont; 
+//         container.addChild(strategyCont);
+//     }
     
-      container.addChild(goalCont);
+//       container.addChild(goalCont);
 
-    var subtreeList = []; 
-    var dx = [0, 10, -10, 15, -15, 20, -20, 25, -25, 30, -30];
-    var v = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
+//     var subtreeList = []; 
+//     var dx = [0, 10, -10, 15, -15, 20, -20, 25, -25, 30, -30];
+//     var v = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
 
-    for (var i = 0; i < subsubtree.length; i++) {
+//     for (var i = 0; i < subsubtree.length; i++) {
         
-         line = new PIXI.Graphics();
-          container.addChild(line);
-        //console.log(subsubtree);
-        const subBody = embodySubtree([], x+dx[i], y + 20, container, subsubtree[i]);
-        subBody[0].v = v[i];  //
-        subtreeList[i] = subBody.slice();
-        body[3] += subBody[0].mass;  
+//          line = new PIXI.Graphics();
+//           container.addChild(line);
+//         //console.log(subsubtree);
+//         const subBody = embodySubtree([], x+dx[i], y + 20, container, subsubtree[i]);
+//         subBody[0].v = v[i];  //
+//         subtreeList[i] = subBody.slice();
+//         body[3] += subBody[0].mass;  
         
        
-        line.name = "e";
-        line.lineStyle(5, 0x5F5F5A, 10);
-        line.moveTo(strategyCont.x, strategyCont.y);
-        line.lineTo(subBody[0].x, subBody[0].y);
+//         line.name = "e";
+//         line.lineStyle(5, 0x5F5F5A, 10);
+//         line.moveTo(strategyCont.x, strategyCont.y);
+//         line.lineTo(subBody[0].x, subBody[0].y);
        
-        subBody[0].incomming = line; 
-    }
+//         subBody[0].incomming = line; 
+//     }
 
-    if (body[3] == 0) {
-        body[3] = goalCont.mass; 
-    } else
-    {
-        body[3] *= 0.9; 
-    }
+//     if (body[3] == 0) {
+//         body[3] = goalCont.mass; 
+//     } else
+//     {
+//         body[3] *= 0.9; 
+//     }
 
-    body[2] = subtreeList; 
-    bodylist[goalCont.id]  = body; 
+//     body[2] = subtreeList; 
+//     bodylist[goalCont.id]  = body; 
    
-    add2LayerList(glLayer, body);
+//     add2LayerList(glLayer, body);
 
-    return body; 
-   
+//     return body; 
 
-    
-    
+// }
 
-}
+// subtree kommt von Prolog als Liste, fast wie der fertige Body
+// [['goal', ID, body, explanation], ['strategy', ID, Body, explanation], [...] , treemaxx]
+// const headIX = 0; 
+//     const strategyIX = 1; 
+//     const childsIX = 2; 
+//     const treeMassIX = 3;
+function updateSubtreeChild(idParent, idChild) 
+{
+    const subtree = subtreeList[idParent].
+    subtree[childsIX].push(idChild); // müsste eigentlich eine Referenz sein
+    //subtreeList[idParent] = subtree;
+} 
 
-function bodyChilds(id) {
-
-    const body = bodylist[id];
-    if (body){
-        return body[2];
-    }
-    else
-    {
-        return []; 
-    }
-}
-
-function bodyMid(id) {
-
-    const body = bodylist[id];
-    return body[0].x; // x position des goals = kopf des bodys
-
-}
-
-function add2LayerList(layerNr, body)
+function updateSubtreeStrgy(id, strategy, mass) 
 {
 
-    if (layerlist[layerNr] == null)
+    const subtree = subtreeList[id];
+
+    subtree[strategyIX] = strategy; 
+    subtree[treeMaIX] = mass; 
+
+    console.log("Subtree now", id, subtree);
+} 
+
+
+function addSubtree(level, subtree, id)
+{
+    console.log("Addasubtrrr", id);
+    subtreeList[id] = subtree; 
+    if (!Array.isArray(layerList[level]))
     {
-        layerlist[layerNr] = []; 
+        layerList[level] = []; 
     }
-    layerlist[layerNr].push(body);
-    
+    layerList[level].push(subtree);
 }
 
-function kFactor(level, layerheight) {
+function kFactor(level) {
 
     const term = -3*level*layerheight;
     return 20/term; 
 }
 
 // type list is of format [[number, type], [number, type]....]
-function gsnElemGenerator(ElemType, name, TypeList) {
 
+// das gsn Element hat Masse, geschwindigkeit, Auftriebskonstante
+// body ist die Liste aus [masse, kfactor, v]
+
+function gsnElemGenerator(elemType, id, body, explanation) 
+{
+//function gsnElemGenerator(ElemType, name, TypeList) {
+    console.log("Elem Generator ", elemType, id, body, explanation);
+    // x,Y muss noch auf default gesetzt werden
     const textMargin = 5;
     const elemCont = new PIXI.Container();
 
@@ -161,50 +184,50 @@ function gsnElemGenerator(ElemType, name, TypeList) {
     var ressourceID;
     var correction = 0; 
 
-    switch(ElemType)
+    switch(elemType)
     {
         case ('strategy'): 
             ressourceID = "/graphics/strategy.png"; 
             correction = 5; 
-            elemCont.mass = 1000; 
         break;
 
         case ('solution'):
              ressourceID = "/graphics/solution.png"; 
-             elemCont.mass = 1000; 
         break
 
         case ('goal') :
              ressourceID = "/graphics/goal.png"; 
-             elemCont.mass = 1000; 
         break; 
-
     }
    
     const gsnElement = new PIXI.Sprite(
                 PIXI.loader.resources[ressourceID].texture
             );  
+    
     elemCont.addChild(gsnElement);
-    elemCont.name = ElemType; 
+    elemCont.name = elemType; 
     gsnElement.anchor.set(0.5);
-    gsnElement.name = name; 
+    elemCont.id = id; 
     elemCont 
             .on('pointerdown', onDragStart)
             .on('pointerup', onDragEnd)
             .on('pointerupoutside', onDragEnd)
             .on('pointermove', onDragMove);
 
+    elemCont.x = canvasWidth/2; 
+    elemCont.y = canvasHeight/2; 
 
     const shiftX = gsnElement.width/2; 
     const shiftY = gsnElement.height/2; 
 
-    var pixiObjects = TypeList.map(symbolGenerator);
+    var pixiObjects = explanation.map(symbolGenerator);
     var layout = calcLayout(gsnElement);
+
 
     for (var i = 0; i < 3; i++)
     {
-        const number = TypeList[i][0];
-        const typeID = TypeList[i][1];
+        const number = explanation[i][0];
+        const typeID = explanation[i][1];
 
         const element = pixiObjects[i];
         const basicText = new PIXI.Text(number.toString(), style);
@@ -218,6 +241,24 @@ function gsnElemGenerator(ElemType, name, TypeList) {
        
         elemCont.addChild(element);
     }
+
+    // embodyment
+    elemCont.mass = body[iMass];
+    elemCont.k = body[iKFact];
+    elemCont.v = body[iV];
+
+    // Linie hinzufügen
+    const line = new PIXI.Graphics();
+        // jetzt noch die Linie
+    line.lineStyle(5, 0x5F5F5A, 10);
+    line.moveTo(elemCont.x, elemCont.y);
+    line.lineTo(elemCont.x, elemCont.y - 5);
+    line.zIndex = -id;
+    playWindow.vpRef.addChild(line); // container global
+   
+    elemCont.incomming = line;
+    playWindow.vpRef.addChild(elemCont);
+    console.log("Zindex", elemCont.zIndex);
     return elemCont;
 }
 
@@ -241,9 +282,10 @@ function calcLayout(element) {
 // elem is of format [number, type]
 function symbolGenerator(elem) {
 
-    const typeID = elem[1]; 
+    const typeID = elem[1];
     var type; 
 
+    console.log("Type: ", typeID);
     switch(typeID) {
 
         case 'rl': 

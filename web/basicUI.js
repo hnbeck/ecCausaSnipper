@@ -2,11 +2,16 @@
 var stage; 
 var playWindow; 
 var ressourceWindow;
-var session = pl.create(1000);
+var session = pl.create(2000);
 var parsed = null; 
-var layerheight; 
-var layerlist = []; 
-var bodylist =  []; 
+var canvasWidth;
+var canvasHeight;
+const headIX = 0; 
+const strategyIX = 1; 
+const childsIX = 2; 
+const treeMassIX = 3; 
+
+
 var maxLayer; 
 
 async function init_Prolog() {
@@ -30,8 +35,8 @@ async function init_Prolog() {
 // here are the Pengine handle functions
 function handleCreate() {
      // init tau prolog
-    session.query("state(gsntree, A).");
-    session.answer(printAnswer); 
+    //session.query("state(gsntree, A).");
+    //session.answer(printAnswer); 
     
     // call the init of the game at SWI Prolog
     //pengine.ask('createGame(P1, P2, Flag, Msg)');
@@ -49,15 +54,12 @@ var printAnswer = function(answer){
     console.log(' Tau answer:' + answer);
 }
 
-function pixiStart() {
-
-    init_Prolog();
-
-
+function pixiStart() 
+{
     stage = new PIXI.Container();
    
     renderer = PIXI.autoDetectRenderer( {view:document.getElementById("game-canvas"), 
-                                        width:1000, 
+                                        width:1200, 
                                         height:800}
             );
    
@@ -76,9 +78,12 @@ function pixiStart() {
       ])
       .load(pixiAssets);
       prio = false; 
+
+    init_Prolog();
 }
     
-function pixiAssets() {
+function pixiAssets() 
+{
     solution = new PIXI.Sprite(
         PIXI.loader.resources["/graphics/solution.png"].texture
     );
@@ -90,71 +95,81 @@ function pixiAssets() {
         PIXI.loader.resources["/graphics/background.png"].texture
     );
    
-    const canvasWidth = document.getElementById("game-canvas").width;
-    const canvasHeight = document.getElementById("game-canvas").height;
+    canvasWidth = document.getElementById("game-canvas").width;
+    canvasHeight = document.getElementById("game-canvas").height;
 
-    // the bottom child
+    // the bottom child#
+    background.x = 0; 
+    background.y = 0; 
+    background.scale.set(2);
     stage.addChild(background);
 
+  
     
-    var sCont  = gsnElemGenerator('strategy',0, [[2, 'rl'],[3, 'mt'], [1, 'ph']]);
-
-    layerheight = sCont.height*1; 
-    //var sSolution  = gsnElemGenerator('solution',[[1, 'rl'],[0, 'mt'], [0, 'ph']]);
-   
+    // generate the windows, one for the tree and one as ressource store
     playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
                                         3000, 3000, canvasWidth-200, canvasHeight); 
     ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
                                             200, 1000, 200, canvasHeight); 
 
+
+  // das ist nun Prolog
+    // only to have a measure for layer height
+    //const sCont  = gsnElemGenerator('strategy',0, [1000,0,0], [[2, 'rl'],[3, 'mt'], [1, 'ph']]);
+    layerHeight = 120; 
+
     stage.addChild(playWindow);
     stage.addChild(ressourceWindow);
 
+    // initial configuration
     playWindow.x = 0;
     playWindow.y = 0;
     playWindow.vpRef.scale.set(0.7);
+    playWindow.vpRef.sortableChildren = true; 
     ressourceWindow.x = canvasWidth-200;
     ressourceWindow.y = 0;
-
-
-    sCont.x = 100;
-    sCont.y = 150; 
+    
 
     // vprRef is the reference to the viewport where all elements resides (are child of)
-    ressourceWindow.vpRef.addChild(sCont);
+    //ressourceWindow.vpRef.addChild(sCont);
     ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
 
     stage.interactive = false;
     stage.buttonMode = false; 
   
-    const rootGoal = [1, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 1];
-    const strg = [2, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 2]; 
-    const strg2 = [5, [[2, 'rl'], [2, 'mt'], [2, 'ph']], 4]; 
+    // das ist nun Prolog
 
-    const g2 = [2, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 3];
-    const g3 = [3, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 3];
-    const g4 = [4, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 3];
+    // const rootGoal = [1, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 1];
+    // const strg = [2, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 2]; 
+    // const strg2 = [5, [[2, 'rl'], [2, 'mt'], [2, 'ph']], 4]; 
 
-    const g5 = [7, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 5];
-    const g6 = [8, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 5];
-    const g7 = [9, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 5];
+    // const g2 = [2, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 3];
+    // const g3 = [3, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 3];
+    // const g4 = [4, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 3];
+
+    // const g5 = [7, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 5];
+    // const g6 = [8, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 5];
+    // const g7 = [9, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 5];
 
     
-    const emptybody2 = [g2, [], []]; 
-    const emptybody4 = [g4, [], []]; 
-    const emptybody5 = [g5, [], []]; 
-    const emptybody6 = [g6, [], []]; 
-    const emptybody7 = [g7, [], []]; 
-    const subtree = [g3, strg2, [ emptybody5,  emptybody6, emptybody7 ]];
+    // const emptybody2 = [g2, [], []]; 
+    // const emptybody4 = [g4, [], []]; 
+    // const emptybody5 = [g5, [], []]; 
+    // const emptybody6 = [g6, [], []]; 
+    // const emptybody7 = [g7, [], []]; 
+    // const subtree = [g3, strg2, [ emptybody5,  emptybody6, emptybody7 ]];
 
-    embodySubtree([], canvasWidth/3, layerheight, 
-                    playWindow.vpRef, 
-                    [rootGoal, strg, [emptybody2,  subtree , emptybody4]]);
+    // embodySubtree([], canvasWidth/3, layerheight, 
+    //                 playWindow.vpRef, 
+    //                 [rootGoal, strg, [emptybody2,  subtree , emptybody4]]);
 
-    background.x = 0; 
-    background.y = 0; 
+    // Initalisiere den Baum
+    session.query("newTree(X).");
+    session.answer(); 
 
-    console.log("Layerlist ", layerlist);
+    session.query("showTree.");
+    session.answer();
+
     requestAnimationFrame(pixiUpdate);
 }
 
@@ -168,11 +183,15 @@ function pixiAssets() {
 // anziehung e*r= mv^2/r <=> e*r^2 = v*v <=> r =v * e'
 // 100 = 10*10
 // 200 = 20 * 10 
-function pixiUpdate() {
+function pixiUpdate() 
+{
+   
 
-    var elemlist =  playWindow.vpRef.children;
+    const elemlist =  playWindow.vpRef.children;
     var line; 
 
+    ///////// vertical layout
+    // just walk through all elements in the playWindwow viewport layer
     for (var i = 0; i < elemlist.length; i++)
     {
         if (elemlist[i].mass > 0)
@@ -181,102 +200,105 @@ function pixiUpdate() {
             const gForce  = elemlist[i].mass/100;
             const updrive = elemlist[i].k*elemlist[i].y;
 
-            if (gForce - updrive  >= 0.1){
+            if (gForce - updrive  >= 0.1)
+            {
                 elemlist[i].y += updrive+gForce; 
+            }
+
+            if (elemlist[i].id == 2) 
+            {
+                // take the root
+                const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
+                const root = rootSt[headIX];
+                line = elemlist[i].incomming;
+                line.clear();  
+                line.lineStyle(5, 0x5F5F5A, 10);
+                line.moveTo(elemlist[i].x, elemlist[i].y);
+                line.lineTo(root.x, root.y);
             }
         }
     }
 
-    //1-based
-    //for (var j = layerlist.length-1; j > 0; j-=2) 
-    for (var j = 1; j < layerlist.length ; j+=2) 
-    {
-        const layer = layerlist[j];
-       
-        // im layer sind jetzt subtrees, eigentlich subtree Köpfe enthalten
+    ///////// layer layout = horizontal layout
 
+    //1-based
+    for (var j = 1; j < layerList.length ; j+=2) 
+    {
+        const layer = layerList[j];
+    
+        // every subtree hangs with its head = the goal in the layer
+        // every subtree has (in general) this head goal, a strategy and child goals
         for (var i = 0; i < layer.length; i++) 
         {
-            const body = layer[i];
-            const id = body[0].id;     
-            const parenty = body[0].y;
-            const parentx = body[0].x;
-            const childs = bodyChilds(id);
-            const parentstg = body[1]; 
-            
-            if (childs.length>0) 
+            const subtree = layer[i];
+            const headGoal = subtree[headIX]; // head is always a goal
+            const childs = subtree[childsIX];
+            const headStrategy = subtree[strategyIX]; 
+    
+            for (var n = 0; n < childs.length; n++)
             {
-                const center = bodyMid(id);
 
-                for (var n = 0; n < childs.length; n++)
+                const subsubtreeID = childs[n];
+                const subsubtree = subtreeList[subsubtreeID];
+                const treeMass = subsubtree[treeMassIX];
+                const goal = subsubtree[headIX]; // das ist das Goal
+                const strategy = subsubtree[strategyIX];
+
+                // erste Korretur: der in der Mittelachse muss darauf bleiben
+                // die Mittelachse kann sich bewegen durch layout des Layers darüber
+                if (goal.v == 0) 
                 {
-
-                    const subBody = childs[n];
-                    const bodymass = subBody[3];
-                    const element = subBody[0]; // das ist das Goal
-                    const strategy = subBody[1];
-
-                    // erste Korretur: der in der Mittelachse muss darauf bleiben
-                    // die Mittelachse kann sich bewegen durch layout des Layers darüber
-                    if (element.v == 0) 
+                    goal.x = headGoal.x; 
+                }
+                else
+                {
+                    const r = (goal.x - headGoal.x);
+                    var sign = Math.sign(r); 
+                    const sign2 = Math.sign(goal.v);
+                    // zweite Korretur: das Objekt muss auf der richtigen Seite der Achse sein
+                    // nur Abstand zur Achse kann geregelt werden
+                    // vorzeichen von v gibt die Seite an
+                    if (sign != sign2)
                     {
-                        element.x = center; 
-                       
+                        // spieglen an der Achse
+                        goal.x += sign*2*r; 
+                        sign *= sign; 
+                    }
+
+                    const pedalForce =  goal.v*treeMass*160/(1000*r)*sign2;
+                    const attraction =  goal.mass/1000*sign;  
+                    
+                    if (Math.abs(pedalForce - attraction) > 0.01)
+                    {
+                        goal.x += (pedalForce - attraction)*5;
+                        // if there is a strategy move it too
+                        if  (!Array.isArray(strategy))
+                        {
+                            strategy.x = goal.x; 
+                            // adjust the line
+                            line = strategy.incomming; 
+                            line.clear(); 
+                            line.lineStyle(5, 0x5F5F5A, 10);
+                            line.moveTo(goal.x, goal.y);
+                            line.lineTo(strategy.x, strategy.y);
+                        }
+                        //console.log("r", center, element.x, r, pedalForce - attraction);
+                        //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
                     }
                     else
                     {
-                        const r = (element.x - center);
-                        var sign = Math.sign(r); 
-                        const sign2 = Math.sign(element.v);
-                        // zweite Korretur: das Objekt muss auf der richtigen Seite der Achse sein
-                        // nur Abstand zur Achse kann geregelt werden
-                        // vorzeichen von v gibt die Seite an
-                        if (sign != sign2)
-                        {
-                            // spieglen an der Achse
-                            element.x += sign*2*r; 
-                            sign *= sign; 
-                        }
-
-
-                        const pedalForce =  element.v*bodymass*160/(1000*r)*sign2;
-                        const attraction =  element.mass/1000*sign;  
-                        //console.log(element.v, element.mass, element.id, r);
-                        if (Math.abs(pedalForce - attraction) > 0.01)
-                        {
-                            element.x += (pedalForce - attraction)*5;
-                            if  (!Array.isArray(strategy))
-                            {
-                                strategy.x = element.x; 
-
-                                line = strategy.incomming; 
-                                line.clear(); 
-                                line.lineStyle(5, 0x5F5F5A, 10);
-                                line.moveTo(element.x, element.y);
-                                line.lineTo(strategy.x, strategy.y);
-                            }
-                            //console.log("r", center, element.x, r, pedalForce - attraction);
-                            //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
-                        }
-                        else
-                        {
-                            element.x = center + r; 
-                        }
-
-                        
-                       
+                        // to come arount numeric unprecision
+                        goal.x = headgoal.x + r; 
                     }
-                    // redraw the line
-                    line = element.incomming; 
-                    line.clear(); 
-                    line.lineStyle(5, 0x5F5F5A, 10);
-                    line.moveTo(parentstg.x, parentstg.y);
-                    line.lineTo(element.x, element.y);
-    
                 }
-                    
+                // redraw the line
+                line = goal.incomming; 
+                line.clear(); 
+                line.lineStyle(5, 0x5F5F5A, 10);
+                line.moveTo(headStrategy.x, headStrategy.y);
+                line.lineTo(goal.x, goal.y);
+
             }
-            
         }
     }
    
