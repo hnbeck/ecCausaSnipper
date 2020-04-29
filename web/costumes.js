@@ -21,102 +21,6 @@ const iMass = 0;
 const iKFact = 1; 
 const iV = 2; 
 
-// this function will be replaced by Prolog
-// function embodySubtree(body, x,y, container, subtree){
-
-//     const goal = subtree[0];
-//     const strategy = subtree[1];
-//     const subsubtree = subtree[2];
-
-//     const glName = goal[0];
-//     const glAttributes = goal[1];
-//     const glLayer = goal[2];
-//     var line; 
-
-//     // masse ist eine strukturelle Größe wird zur eigenschaft
-
-//     const goalCont  = gsnElemGenerator('goal', glName, glAttributes);
-//     goalCont.x = x; 
-//     goalCont.y = y; 
-//     goalCont.level = glLayer; 
-//     goalCont.k = kFactor(glLayer, layerheight);
-//     goalCont.id = glName; 
-   
-  
-//     body[0] = goalCont; 
-//     body[1] = []; 
-//     body[2] = []; 
-//     body[3] = 0; 
-
-//     //container.addChild(goalCont);
-//     var strategyCont; 
-
-//     if (strategy.length > 0){
-//         const stName = strategy[0];
-//         const stAttributes = strategy[1];
-//         const stLayer = strategy[2];
-
-//         strategyCont  = gsnElemGenerator('strategy', stName, stAttributes);
-//         strategyCont.x = x; 
-//         strategyCont.y = y + 5; 
-//         strategyCont.level = stLayer; 
-       
-//         strategyCont.k = kFactor(stLayer, layerheight);
-       
-       
-//         line = new PIXI.Graphics();
-//         line.name = "e";
-//         // jetzt noch die Linie
-//         line.lineStyle(5, 0x5F5F5A, 10);
-//         line.moveTo(goalCont.x, goalCont.y);
-//         line.lineTo(strategyCont.x, strategyCont.y);
-//         container.addChild(line);
-//         strategyCont.incomming = line;
-
-//         body[1] = strategyCont; 
-//         container.addChild(strategyCont);
-//     }
-    
-//       container.addChild(goalCont);
-
-//     var subtreeList = []; 
-//     var dx = [0, 10, -10, 15, -15, 20, -20, 25, -25, 30, -30];
-//     var v = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5];
-
-//     for (var i = 0; i < subsubtree.length; i++) {
-        
-//          line = new PIXI.Graphics();
-//           container.addChild(line);
-//         //console.log(subsubtree);
-//         const subBody = embodySubtree([], x+dx[i], y + 20, container, subsubtree[i]);
-//         subBody[0].v = v[i];  //
-//         subtreeList[i] = subBody.slice();
-//         body[3] += subBody[0].mass;  
-        
-       
-//         line.name = "e";
-//         line.lineStyle(5, 0x5F5F5A, 10);
-//         line.moveTo(strategyCont.x, strategyCont.y);
-//         line.lineTo(subBody[0].x, subBody[0].y);
-       
-//         subBody[0].incomming = line; 
-//     }
-
-//     if (body[3] == 0) {
-//         body[3] = goalCont.mass; 
-//     } else
-//     {
-//         body[3] *= 0.9; 
-//     }
-
-//     body[2] = subtreeList; 
-//     bodylist[goalCont.id]  = body; 
-   
-//     add2LayerList(glLayer, body);
-
-//     return body; 
-
-// }
 
 // subtree kommt von Prolog als Liste, fast wie der fertige Body
 // [['goal', ID, body, explanation], ['strategy', ID, Body, explanation], [...] , treemaxx]
@@ -124,34 +28,36 @@ const iV = 2;
 //     const strategyIX = 1; 
 //     const childsIX = 2; 
 //     const treeMassIX = 3;
-function updateSubtreeChild(idParent, idChild) 
+function updateSubtreeChild(idParent, idChild, childmass) 
 {
-    const subtree = subtreeList[idParent].
-    subtree[childsIX].push(idChild); // müsste eigentlich eine Referenz sein
-    //subtreeList[idParent] = subtree;
+    const subtree = subtreeList[idParent];
+    subtree[treeMassIX] += childmass; 
+    subtree[childsIX].push(idChild); 
+
+    console.log("Subtree goal now", subtree);
 } 
 
-function updateSubtreeStrgy(id, strategy, mass) 
+function updateSubtreeStrategy(id, strategy, mass) 
 {
-
     const subtree = subtreeList[id];
 
     subtree[strategyIX] = strategy; 
-    subtree[treeMaIX] = mass; 
+    subtree[treeMassIX] = mass; 
 
-    console.log("Subtree now", id, subtree);
+    console.log("Subtree strategy now", id, subtree);
 } 
 
-
+// adds a subtree to the subtreelist, index is the id of the head goal
 function addSubtree(level, subtree, id)
 {
-    console.log("Addasubtrrr", id);
     subtreeList[id] = subtree; 
     if (!Array.isArray(layerList[level]))
     {
         layerList[level] = []; 
     }
     layerList[level].push(subtree);
+
+    console.log("Layers now ", layerList);
 }
 
 function kFactor(level) {
@@ -214,9 +120,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
             .on('pointerupoutside', onDragEnd)
             .on('pointermove', onDragMove);
 
-    elemCont.x = canvasWidth/2; 
-    elemCont.y = canvasHeight/2; 
-
+  
     const shiftX = gsnElement.width/2; 
     const shiftY = gsnElement.height/2; 
 
@@ -246,6 +150,10 @@ function gsnElemGenerator(elemType, id, body, explanation)
     elemCont.mass = body[iMass];
     elemCont.k = body[iKFact];
     elemCont.v = body[iV];
+
+    const dx = elemCont.v*10; 
+    elemCont.x = canvasWidth/2 + dx; 
+    elemCont.y = canvasHeight/2; 
 
     // Linie hinzufügen
     const line = new PIXI.Graphics();
@@ -285,7 +193,6 @@ function symbolGenerator(elem) {
     const typeID = elem[1];
     var type; 
 
-    console.log("Type: ", typeID);
     switch(typeID) {
 
         case 'rl': 

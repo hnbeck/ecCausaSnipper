@@ -51,15 +51,15 @@ init :-
 % GL = Goal, St = Strukture, So = Solution, 
 
 newTree(Tree) :-
-	realGoal(1, Goal, JSObject),
-	goalAsSubtree(Goal, root, root, Tree),
+	realGoal(1, 0, Goal, JSObject),
+	goalAsSubtree(Goal, root, Tree),
 	embodySubtree(Tree, JSObject, 1),
 	holdTerm( Tree, gsnTree),
 	addStrategy(1).
 
 showTree :-
-	status(gsnTree, Tree),
-	writeHTML('Tauout', Tree,_).
+	state(gsnTree, Tree), 
+	writeHTML('Tauhtml', Tree, _).
 
 % the element of a goal and a stragegy are the explanation types
 % rl = rule = normative setting, mt= measurement, ph = phenomenon.
@@ -139,12 +139,12 @@ newGSN(Type, Body, Explanation, Element) :-
 	Element =.. [Type, No2, Body, Explanation].
 
 % in future explanation will be some kind of randomness
-realGoal(Level, Goal, JSObject) :-
+realGoal(Level, V, Goal, JSObject) :-
 	explanation(argument(10, rl),
 				argument(4, mt), 
 				argument(6, ph),
 				Explanation),
-	body(Level, 1000, 0, Body),
+	body(Level, 1000, V, Body),
 	newGSN(goal, Body, Explanation, Goal),
 	embodyGoal(Goal, JSObject).
 
@@ -155,21 +155,28 @@ realStrategy(Level, Strategy, JSObject) :-
 				argument(10, ph),
 				Explanation),
 	body(Level, 1000, 0, Body),
-	newGSN(strategy, Body, Explanation, Goal),
-	embodyStrategy(Goal, JSObject).
+	newGSN(strategy, Body, Explanation, Strategy),
+	embodyStrategy(Strategy, JSObject).
 
 % new goal bedeutet new subtree - immer
-newGoal(Level, Parent, Parent2, NewSubtree) :-
-	realGoal(Level, Goal, JSObject),
-	goalAsSubtree(Goal, Parent, Parent2, NewSubtree),
+% add it to a parent
+newGoal(Level, V, Parent, Parent2, NewSubtree) :-
+	realGoal(Level, V,  Goal, JSObject),
+	goalAsSubtree(Goal, Parent, NewSubtree),
+	subtreePlusGoal(NewSubtree, Parent, Parent2),
 	embodySubtree(NewSubtree, JSObject, Level),
-	updateEmbodyChild(Parent2, NewSubtree).
+	syncSubtree(child, Parent2, NewSubtree).
 
 newStrategy(Level, Subtree, Subtree2) :-
 	realStrategy(Level, Strategy, JSObject),
-	subtreePlusSt(Subtree, Strategy, Subtree2),
-	updateEmbodySubtree(Subtree2,  JSObject).
+	subtreePlusStrategy(Level, Strategy, Subtree, Subtree2),
+	syncSubtree(strategy, Subtree2, JSObject).
 
+% generate the child goals of a strategy
+newChildGoals(Strategy, Level, Subtree2, Subtree4) :-
+	Level2 is Level + 1, 
+	newGoal(Level2, 1, Subtree2, Subtree3, _),
+	newGoal(Level2, -1, Subtree3, Subtree4, _).
 
 %%%%%%%%%%%%%%%%%%%% modifications %%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -177,15 +184,15 @@ newStrategy(Level, Subtree, Subtree2) :-
 % StID is subtree ID = ID of head goal of this subtree
 addStrategy(StID) :-
 	state(gsnTree, Tree),
-	updateSubtree(StID, 2, Level2, Tree, Tree2),
+	updateTree(StID, 2, Level2, Tree, Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
-updateSubtree(ID, Level, Level, Tree, Tree2) :-
+updateTree(ID, Level, Level, Tree, Tree2) :-
 	subtree(id, Tree, ID),
 	newStrategy(Level, Tree, Tree2),!.
 
-updateSubtree(ID, Level, Level2, Tree, Tree2) :-
+updateTree(ID, Level, Level2, Tree, Tree2) :-
 	subtree(childs, Tree, Childs),
 	updateChilds(ID, Childs, Level, Level2, Tree, Tree2).
 
@@ -194,37 +201,41 @@ updateChilds(ID, [], Level, Level, Tree, Tree) :- false.
 
 % go over all child subtrees
 updateChilds(ID, [H | T], Level, Level2, Tree, Tree2) :-
-	updateSubTree(ID, H,  Level, Level2, Tree, Tree2),!.
+	updateTree(ID, H,  Level, Level2, Tree, Tree2),!.
 
 updateChilds(ID, [H | T], Level, Level4, Tree, Tree2) :-
 	Level2 is Level + 1, 
 	updateChilds(ID, T, Level3, Level4, Tree, Tree2).
 
 
-
-
-goalAsSubtree(Goal, root, _, Subtree) :-
+goalAsSubtree(Goal, root, Subtree) :-
 	goal(mass, Goal, M),
 	Subtree = subtree(Goal, [], [], M, root),!. 
 
-goalAsSubtree(Goal, Parent, Parent3, Subtree) :-
+goalAsSubtree(Goal, Parent, Subtree) :-
 	goal(mass, Goal, M),
-	Subtree = subtree(Goal, [], [], M, Parent), 
-	subtree(childs, Parent, Childs), 
-	goal(mass, Parent, M2),
-	M3 is M2 + M, 
-	subtree(mass, M3, Parent, Parent2),
-	append(Childs, [Subtree], Childs2), 
-	subtree(childs, Child2, Parent2, Parent3).
+	subtree(id, Parent, ID),
+	Subtree = subtree(Goal, [], [], M, ID).
 
 
 % a goal gets a strategy, means the related subtree gets the strategy
 % per definition there cannot be childs
-subtreePlusSt(subtree(Goal, [], [], M, Parent), Strategy, Subtree2) :-
+
+subtreePlusStrategy(Level, Strategy, subtree(Goal, [], [], M, Parent), Subtree3) :-
 	strategy(mass, Strategy, M2),
 	M3 is M + M2, 
-	Subtree2 = subtree(Goal, Strategy, [], M3, Parent).
+	Subtree2 = subtree(Goal, Strategy, [], M3, Parent),
+	newChildGoals(Strategy, Level, Subtree2, Subtree3).
 
+% new goal as subtree will be added to a parent
+subtreePlusGoal(GoalAsSubtree, Parent, Parent3) :-
+	subtree(childs, Parent, Childs), 
+	subtree(mass, GoalAsSubtree, M),
+	subtree(mass, Parent, M2),
+	M3 is M2 + M, 
+	subtree(mass, M3, Parent, Parent2),
+	append(Childs, [GoalAsSubtree], Childs2), 
+	subtree(childs, Childs2, Parent2, Parent3).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -242,6 +253,8 @@ msg2JS(FktID, Term) :-
 msg2JS(DOMId) :-
 	state(msg, Msg),
 	writeHTML(DOMId, Msg, _).
+
+%%%%%%%%%%%% embodiement %%%%%%%%%%%%%%%%
 
 % generate PIXI object from this
 embodyGoal(Goal, JSObject) :-
@@ -261,7 +274,7 @@ embodyStrategy(Strategy, JSObject) :-
 	prop('gsnElemGenerator', JSFkt),
 	apply(JSFkt, ['strategy', ID, BList, E], JSObject).
 
-% without stragegy there can be no childs
+% embody new subtree - it contains only a goal per definition
 embodySubtree(subtree(Goal, [], [], _, _), JSObject,  Level) :-
 	goal(id, Goal, ID),
 	goal(mass, Goal, Mass),
@@ -269,18 +282,23 @@ embodySubtree(subtree(Goal, [], [], _, _), JSObject,  Level) :-
 	prop('addSubtree', JSFkt2),
 	apply(JSFkt2, [Level, ST, ID], _),!.
 
-% thats the pattern if a new strategy is there
-	
-updateEmbodyChild(Parent2, NewSubtree) :-
-	subtree(id, Parent2, ID),
-	subtree(id, NewSubtree, NewID),
-	prop('updateSubtreeChild', JSFkt),
-	apply(JSFkt, [ID, NewID], _).
 
-updateEmbodySubtree(Subtree, JSObject) :-
+%%%%%%%%%%%%% synchro with JS %%%%%%%%%%%%%%%%%
+
+% communicate JS the new child of a subtree
+% +Parent : the subtree which gets the new child
+% +NewSubtree: the Subtree which will be the child	
+syncSubtree(child, Parent, ChildSubtree) :-
+	subtree(id, Parent, ID),
+	subtree(id, ChildSubtree, ChID),
+	subtree(mass, ChildSubtree, Mass),
+	prop('updateSubtreeChild', JSFkt),
+	apply(JSFkt, [ID, ChID, Mass], _).
+
+syncSubtree(strategy, Subtree, JSObject) :-
 	subtree(id, Subtree, ID),
 	subtree(mass, Subtree, M),
-	prop('updateSubtreeStrgy', JSFkt),
+	prop('updateSubtreeStrategy', JSFkt),
 	apply(JSFkt, [ID, JSObject, M], _).
 
 % write the query term in a non visible DOM element where it can be accessed

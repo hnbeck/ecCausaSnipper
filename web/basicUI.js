@@ -14,14 +14,13 @@ const treeMassIX = 3;
 
 var maxLayer; 
 
-async function init_Prolog() {
+function init_Prolog() {
     // load tau
-     await $.get("/web/webProlog.pl", function(data) {
+        $.get("/web/webProlog.pl", function(data) {
         parsed = session.consult(data);
         session.query("init.");
         session.answer(printAnswer);
     });
-
 
     // Tau is loaded, now pengine and during this also init tau
     pengine = new Pengine({
@@ -170,6 +169,7 @@ function pixiAssets()
     session.query("showTree.");
     session.answer();
 
+    console.log("Subtreelist at the End", subtreeList);
     requestAnimationFrame(pixiUpdate);
 }
 
@@ -288,7 +288,7 @@ function pixiUpdate()
                     else
                     {
                         // to come arount numeric unprecision
-                        goal.x = headgoal.x + r; 
+                        goal.x = headGoal.x + r; 
                     }
                 }
                 // redraw the line
