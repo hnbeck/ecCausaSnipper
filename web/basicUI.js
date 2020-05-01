@@ -3,7 +3,7 @@ var stage;
 var playWindow; 
 var ressourceWindow;
 var session = pl.create(2000);
-var parsed = null; 
+var parsed = false; 
 var canvasWidth;
 var canvasHeight;
 const headIX = 0; 
@@ -14,14 +14,29 @@ const treeMassIX = 3;
 
 var maxLayer; 
 
+
+async function waitforParsed(msec, count) {
+
+    // Check if condition met. If not, re-check later (msec).
+    while ((parsed !== true) && (count > 0) )
+    {
+        count--;
+        setTimeout(function() {
+            waitforParsed( msec, count);
+        }, msec);
+        return;
+    }
+    console.log("Wait is over", parsed);
+}
+
 function init_Prolog() {
     // load tau
-        $.get("/web/webProlog.pl", function(data) {
+       $.get("/web/webProlog.pl", function(data) {
         parsed = session.consult(data);
         session.query("init.");
         session.answer(printAnswer);
     });
-
+    
     // Tau is loaded, now pengine and during this also init tau
     pengine = new Pengine({
         oncreate: handleCreate, 
@@ -136,33 +151,8 @@ function pixiAssets()
     stage.interactive = false;
     stage.buttonMode = false; 
   
-    // das ist nun Prolog
 
-    // const rootGoal = [1, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 1];
-    // const strg = [2, [[2, 'rl'], [1, 'mt'], [0, 'ph']], 2]; 
-    // const strg2 = [5, [[2, 'rl'], [2, 'mt'], [2, 'ph']], 4]; 
-
-    // const g2 = [2, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 3];
-    // const g3 = [3, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 3];
-    // const g4 = [4, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 3];
-
-    // const g5 = [7, [[1, 'rl'], [0, 'mt'], [4, 'ph']], 5];
-    // const g6 = [8, [[1, 'rl'], [0, 'mt'], [0, 'ph']], 5];
-    // const g7 = [9, [[3, 'rl'], [1, 'mt'], [1, 'ph']], 5];
-
-    
-    // const emptybody2 = [g2, [], []]; 
-    // const emptybody4 = [g4, [], []]; 
-    // const emptybody5 = [g5, [], []]; 
-    // const emptybody6 = [g6, [], []]; 
-    // const emptybody7 = [g7, [], []]; 
-    // const subtree = [g3, strg2, [ emptybody5,  emptybody6, emptybody7 ]];
-
-    // embodySubtree([], canvasWidth/3, layerheight, 
-    //                 playWindow.vpRef, 
-    //                 [rootGoal, strg, [emptybody2,  subtree , emptybody4]]);
-
-    // Initalisiere den Baum
+    waitforParsed(600, 100000);
     session.query("newTree(X).");
     session.answer(); 
 
