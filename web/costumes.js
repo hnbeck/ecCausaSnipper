@@ -15,7 +15,7 @@ var layerList = [];
 var subtreeList = []; // is in old code the body[]
 
 var layerheight = 100; //default 
-
+var numberStrategy = 1; 
 // einige wichtige Indizes
 const iMass = 0; 
 const iKFact = 1; 
@@ -28,11 +28,16 @@ const iV = 2;
 //     const strategyIX = 1; 
 //     const childsIX = 2; 
 //     const treeMassIX = 3;
+//      const parendIX = 4; 
 function updateSubtreeChild(idParent, idChild, childmass) 
 {
     const subtree = subtreeList[idParent];
     subtree[treeMassIX] += childmass; 
     subtree[childsIX].push(idChild); 
+
+    // lagekorrektur
+    const childTree = subtreeList[idChild];
+    childTree[headIX].x = subtree[headIX].x  + childTree[headIX].v*50; 
 
     console.log("Subtree goal now", subtree);
 } 
@@ -40,12 +45,26 @@ function updateSubtreeChild(idParent, idChild, childmass)
 function updateSubtreeStrategy(id, strategy, mass) 
 {
     const subtree = subtreeList[id];
+    const parentID = subtree[parentIX];
 
     subtree[strategyIX] = strategy; 
     subtree[treeMassIX] = mass; 
 
+    propagateMass(parentID, subtree[treeMassIX]);
     console.log("Subtree strategy now", id, subtree);
 } 
+
+function propagateMass(parentID, mass)
+{   
+    if (parentID != "root")
+    {
+        console.log("Parent is ", parentID);
+        const subtree = subtreeList[parentID];
+        subtree[treeMassIX] += mass; 
+        const id = subtree[parentIX];
+        propagateMass(id, subtree[treeMassIX]);
+    }
+}
 
 // adds a subtree to the subtreelist, index is the id of the head goal
 function addSubtree(level, subtree, id)
@@ -78,6 +97,8 @@ function gsnElemGenerator(elemType, id, body, explanation)
     // x,Y muss noch auf default gesetzt werden
     const textMargin = 5;
     const elemCont = new PIXI.Container();
+    var parentContainer =  playWindow.vpRef;
+    var lineAlpha = 1.0; 
 
     elemCont.interactive = true; 
     // Text style for numbers
@@ -90,11 +111,31 @@ function gsnElemGenerator(elemType, id, body, explanation)
     var ressourceID;
     var correction = 0; 
 
+ // embodyment
+    elemCont.mass = body[iMass];
+    elemCont.k = body[iKFact];
+    elemCont.v = body[iV];
+    elemCont.touched = false; 
+    elemCont.dragging = false; 
+
+    const dx = elemCont.v; 
+    elemCont.x = 2000 + dx; 
+    elemCont.y = canvasHeight/2; 
+
     switch(elemType)
     {
         case ('strategy'): 
             ressourceID = "/graphics/strategy.png"; 
             correction = 5; 
+            if (elemCont.mass == 0) // when es ein Ghost ist
+            {   
+                parentContainer = ressourceWindow.vpRef; 
+                elemCont.x = ressourceWindow.width/2;
+                elemCont.y = numberStrategy*layerheight;
+                numberStrategy++;
+                lineAlpha = 0.0; 
+            }
+            
         break;
 
         case ('solution'):
@@ -109,7 +150,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
     const gsnElement = new PIXI.Sprite(
                 PIXI.loader.resources[ressourceID].texture
             );  
-    
+
     elemCont.addChild(gsnElement);
     elemCont.name = elemType; 
     gsnElement.anchor.set(0.5);
@@ -146,27 +187,20 @@ function gsnElemGenerator(elemType, id, body, explanation)
         elemCont.addChild(element);
     }
 
-    // embodyment
-    elemCont.mass = body[iMass];
-    elemCont.k = body[iKFact];
-    elemCont.v = body[iV];
-
-    const dx = elemCont.v*10; 
-    elemCont.x = canvasWidth/2 + dx; 
-    elemCont.y = canvasHeight/2; 
-
+   
     // Linie hinzufügen
     const line = new PIXI.Graphics();
         // jetzt noch die Linie
     line.lineStyle(5, 0x5F5F5A, 10);
     line.moveTo(elemCont.x, elemCont.y);
-    line.lineTo(elemCont.x, elemCont.y - 5);
+    line.lineTo(elemCont.x, elemCont.y-1);
     line.zIndex = -id;
+    line.alpha = lineAlpha; 
     playWindow.vpRef.addChild(line); // container global
    
     elemCont.incomming = line;
-    playWindow.vpRef.addChild(elemCont);
-    console.log("Zindex", elemCont.zIndex);
+    parentContainer.addChild(elemCont);
+
     return elemCont;
 }
 

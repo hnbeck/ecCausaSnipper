@@ -1,6 +1,6 @@
 
-function windowGenerator(configList, width, height, winWidth, winHeight) {
-
+function windowGenerator(configList, width, height, winWidth, winHeight) 
+{
     const window = new PIXI.Container(); 
     const viewport = new PIXI.Container();
     const marker = new PIXI.Graphics();
@@ -12,13 +12,14 @@ function windowGenerator(configList, width, height, winWidth, winHeight) {
     ///// create viewport /////
     // indication of viewpoint area which may be much larger than camera view
     area.alpha = configList[0].alpha;
-    area.width = width; 
-    area.height = height; 
     area.name = "area";
-    viewport.x = 0; 
-    viewport.y = 0;   
+
+    viewport.position = viewPos(configList[0].name, width, height, winWidth, winHeight);
     viewport.interactive = true;
     viewport.buttonMode = false; 
+    viewport.filter = configList[0];
+    viewport.name = configList[0].name;
+
     viewport
             .on('pointerdown', onPointerStart)
             .on('pointerup', onPointerEnd)
@@ -26,14 +27,15 @@ function windowGenerator(configList, width, height, winWidth, winHeight) {
             .on('pointermove', onPointerMove);
           
      
-    marker.lineStyle(2, 0xFFBD01, 1);
+    marker.lineStyle(6, 0x282200, 0.2);
     marker.drawCircle(width/2, height/2, 10);
+    marker.drawRect(0,0,width, height);
 
     viewport.addChild(area, marker);
-    viewport.filter = configList[0];
-    viewport.name = configList[0].name;
-
+    
+    // create layer for augmentation of buttons
     const augmentLayer = augmentGenerator(configList, width, height, winWidth, winHeight, viewport);
+    
      // show only what camera can see
     viewport.mask = cameraGenerator(winWidth, winHeight);
     augmentLayer.addChild(viewport.mask);
@@ -45,8 +47,21 @@ function windowGenerator(configList, width, height, winWidth, winHeight) {
     return window; 
 }
 
-function cameraGenerator(w,h) {
-    
+function viewPos(name, width, height, winWidth, winHeight)
+{
+    const pos = new PIXI.Point(0,0);
+    const scale = 0.5; 
+
+    if (name == "play")
+    {
+        pos.x =  -width/2*scale + winWidth/2;
+    }
+    return pos; 
+}
+
+// camera for mask
+function cameraGenerator(w,h) 
+{
     const camera = new PIXI.Graphics();
 
     camera.beginFill(0xFFFFFF,0.5);
@@ -64,7 +79,6 @@ function augmentGenerator(configList, width, height, winWidth, winHeight, viewpo
 
     for (var i = 1; i < configList.length; i++)
     {
-
         switch (configList[i]) {
 
             case 's': // s stands for scaling allowed
@@ -127,7 +141,8 @@ function scaleGenerator () {
 
 ////////////////////// scaling / dragging call backs for touch /////////////////////////
 
-function onPointerStart(event) {
+function onPointerStart(event) 
+{
     // store a reference to the data
     // the reason for this is because of multitouch
     // we want to track the movement of this particular touch
@@ -138,9 +153,8 @@ function onPointerStart(event) {
 
     // save for later use
     this.data = event.data;
-
-    if (!this.dragging) {
-
+    if (!this.dragging) 
+    {
         this.touchpoints = []; 
         this.dragging = true;
     }
@@ -150,7 +164,8 @@ function onPointerStart(event) {
     prio = true;
 }
 
-function onPointerEnd() {
+function onPointerEnd() 
+{
     this.dragging = false;
     // set the interaction data to null
     this.data = null;
@@ -159,15 +174,17 @@ function onPointerEnd() {
     prio = false; 
 }
 
-function onPointerMove(event) {
-
+function onPointerMove(event) 
+{
     const px = 0;
     const py = 1; 
     const pID = 2; 
     const filterX = this.filter.x;
     const filterY = this.filter.y; 
 
-    if (this.dragging) {
+
+    if (this.dragging) 
+    {
         // mulittouch or not?
         if (this.touchpoints.length < 2)
         {
@@ -179,7 +196,8 @@ function onPointerMove(event) {
         }
         else
         {
-            if (this.scaling) {
+            if (this.scaling) 
+            {
                 const index = this.touchpoints.findIndex(selectPoint, this.data);
                 this.touchpoints[index][px] = this.data.global.x; 
                 this.touchpoints[index][py] = this.data.global.y;
@@ -217,27 +235,28 @@ function selectPoint(value, index, array)
 
 //////////////////////////////////// button callbacks //////////////////////////////
 
-function onBtUpDown () {
-
+function onBtUpDown () 
+{
     const vp = this.parent.vpRef; 
     vp.scale.x += 0.05;
     vp.scale.y += 0.05;
     this.scale.set(1.2);
 }
 
-function onBtUpOver () {
+function onBtUpOver () 
+{
     this.alpha = 1.0;
 }
 
-function onBtUpUp() {
-
+function onBtUpUp() 
+{
     this.scale.set(1.0);
     this.alpha = 0.7;
     this.scale.set(1.0);
 }
 
-function onBtDownDown () {
-    
+function onBtDownDown () 
+{
     const vp = this.parent.vpRef;
     vp.scale.x -= 0.05;
     vp.scale.y -= 0.05;

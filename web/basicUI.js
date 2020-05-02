@@ -10,13 +10,14 @@ const headIX = 0;
 const strategyIX = 1; 
 const childsIX = 2; 
 const treeMassIX = 3; 
-
+const parentIX = 4; 
+var touchedObject = []; 
 
 var maxLayer; 
 
 
-async function waitforParsed(msec, count) {
-
+function waitforParsed(msec, count) 
+{
     // Check if condition met. If not, re-check later (msec).
     while ((parsed !== true) && (count > 0) )
     {
@@ -26,7 +27,7 @@ async function waitforParsed(msec, count) {
         }, msec);
         return;
     }
-    console.log("Wait is over", parsed);
+    console.log("Wait is over", parsed, count);
 }
 
 function init_Prolog() {
@@ -34,7 +35,9 @@ function init_Prolog() {
        $.get("/web/webProlog.pl", function(data) {
         parsed = session.consult(data);
         session.query("init.");
-        session.answer(printAnswer);
+        session.answer(function (answer) {
+            session.query("newTree(X).");
+            session.answer();} );
     });
     
     // Tau is loaded, now pengine and during this also init tau
@@ -92,8 +95,6 @@ function pixiStart()
       ])
       .load(pixiAssets);
       prio = false; 
-
-    init_Prolog();
 }
     
 function pixiAssets() 
@@ -118,18 +119,12 @@ function pixiAssets()
     background.scale.set(2);
     stage.addChild(background);
 
-  
-    
     // generate the windows, one for the tree and one as ressource store
     playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
-                                        3000, 3000, canvasWidth-200, canvasHeight); 
+                                        4000, 4000, canvasWidth-200, canvasHeight); 
     ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
                                             200, 1000, 200, canvasHeight); 
 
-
-  // das ist nun Prolog
-    // only to have a measure for layer height
-    //const sCont  = gsnElemGenerator('strategy',0, [1000,0,0], [[2, 'rl'],[3, 'mt'], [1, 'ph']]);
     layerHeight = 120; 
 
     stage.addChild(playWindow);
@@ -138,24 +133,21 @@ function pixiAssets()
     // initial configuration
     playWindow.x = 0;
     playWindow.y = 0;
-    playWindow.vpRef.scale.set(0.7);
+    playWindow.vpRef.scale.set(0.5);
     playWindow.vpRef.sortableChildren = true; 
     ressourceWindow.x = canvasWidth-200;
     ressourceWindow.y = 0;
     
-
-    // vprRef is the reference to the viewport where all elements resides (are child of)
-    //ressourceWindow.vpRef.addChild(sCont);
     ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
 
     stage.interactive = false;
-    stage.buttonMode = false; 
+    stage.buttonMode = false;   
   
+    init_Prolog();
 
-    waitforParsed(600, 100000);
-    session.query("newTree(X).");
-    session.answer(); 
-
+    // waitforParsed(500, 1);
+    console.log("und weiter");
+    
     session.query("showTree.");
     session.answer();
 
@@ -175,8 +167,6 @@ function pixiAssets()
 // 200 = 20 * 10 
 function pixiUpdate() 
 {
-   
-
     const elemlist =  playWindow.vpRef.children;
     var line; 
 
@@ -184,28 +174,31 @@ function pixiUpdate()
     // just walk through all elements in the playWindwow viewport layer
     for (var i = 0; i < elemlist.length; i++)
     {
-        if (elemlist[i].mass > 0)
+         if (elemlist[i].touched == true)
+                elemlist[i].scale.set(1.2);
+         else
+                elemlist[i].scale.set(1);
+
+        if ((elemlist[i].mass > 0) && (elemlist[i].dragging !== true))
         {
             // force down
-            const gForce  = elemlist[i].mass/100;
+            const gForce  = elemlist[i].mass/10;
             const updrive = elemlist[i].k*elemlist[i].y;
 
             if (gForce - updrive  >= 0.1)
             {
                 elemlist[i].y += updrive+gForce; 
             }
-
-            if (elemlist[i].id == 2) 
-            {
-                // take the root
-                const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
-                const root = rootSt[headIX];
-                line = elemlist[i].incomming;
-                line.clear();  
-                line.lineStyle(5, 0x5F5F5A, 10);
-                line.moveTo(elemlist[i].x, elemlist[i].y);
-                line.lineTo(root.x, root.y);
-            }
+           
+            // take the root
+            const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
+            const root = rootSt[headIX];
+            line = elemlist[i].incomming;
+            line.clear();  
+            line.lineStyle(5, 0x5F5F5A, 10);
+            line.moveTo(elemlist[i].x, elemlist[i].y);
+            line.lineTo(root.x, root.y);
+            
         }
     }
 
@@ -230,7 +223,7 @@ function pixiUpdate()
 
                 const subsubtreeID = childs[n];
                 const subsubtree = subtreeList[subsubtreeID];
-                const treeMass = subsubtree[treeMassIX];
+                const treeMass = subsubtree[treeMassIX]*0.5;
                 const goal = subsubtree[headIX]; // das ist das Goal
                 const strategy = subsubtree[strategyIX];
 
@@ -255,8 +248,8 @@ function pixiUpdate()
                         sign *= sign; 
                     }
 
-                    const pedalForce =  goal.v*treeMass*160/(1000*r)*sign2;
-                    const attraction =  goal.mass/1000*sign;  
+                    const pedalForce =  goal.v*treeMass*160/(100*r)*sign2;
+                    const attraction =  goal.mass/100*sign;  
                     
                     if (Math.abs(pedalForce - attraction) > 0.01)
                     {
@@ -279,14 +272,26 @@ function pixiUpdate()
                     {
                         // to come arount numeric unprecision
                         goal.x = headGoal.x + r; 
+                        if  (!Array.isArray(strategy))
+                        {
+                            strategy.x = goal.x; 
+                            // adjust the line
+                            line = strategy.incomming; 
+                            line.clear(); 
+                            line.lineStyle(5, 0x5F5F5A, 10);
+                            line.moveTo(goal.x, goal.y);
+                            line.lineTo(strategy.x, strategy.y);
+                        }
                     }
                 }
                 // redraw the line
+                headStrategy.x = headGoal.x
                 line = goal.incomming; 
                 line.clear(); 
                 line.lineStyle(5, 0x5F5F5A, 10);
                 line.moveTo(headStrategy.x, headStrategy.y);
                 line.lineTo(goal.x, goal.y);
+
 
             }
         }
@@ -298,6 +303,29 @@ function pixiUpdate()
 
 
 /////////////////////////////////// Event Handling ///////////////////////////////////////////////
+// collision with a goal 
+// object1 hast to be a goal, object 2 is the dragged object
+function collisionCheck(object1) 
+{   
+    if ((object1.name == "goal") && (object1.id != this.id))
+    {
+        const bounds1 = object1.getBounds();
+        const bounds2 = this.getBounds();
+
+        object1.touched = false; 
+
+        return bounds1.x < bounds2.x + bounds2.width
+            && bounds1.x + bounds2.width > bounds2.x
+            && bounds1.y < bounds2.y + bounds2.height
+            && bounds1.y + bounds2.height > bounds2.y;
+    }
+    else
+    {
+        object1.touched = false; 
+        return false; 
+    }
+}
+
 
 function onDragStart(event) {
     // store a reference to the data
@@ -308,71 +336,98 @@ function onDragStart(event) {
     this.dragging = true;
     prio = true; 
 
-    console.log("Sprite");
     event.stopPropagation();
-
 }
 
-function onDragEnd() {
+function onDragEnd() 
+{
     this.alpha = 1;
     this.dragging = false;
     // set the interaction data to null
     this.data = null;
     prio = false; 
     //console.log("drag end");
+    
+    if (touchedObject.length > 0 )
+    {
+        const id = touchedObject[0].id;
+        session.query("addStrategy("+id+").");
+        session.answer(); 
+        touchedObject[0].touched = false; 
+        touchedObject = []; 
+        playWindow.vpRef.removeChild(this);
+    }
+
+    session.query("showTree.");
+    session.answer();
+
+    // hier Tau Aufrfen
     event.stopPropagation();
 }
 
-function onDragMove() {
-    if (this.dragging) {
+function onDragMove() 
+{
+    if (this.dragging) 
+    {
         const newPosition = this.data.getLocalPosition(this.parent);
         this.x = newPosition.x;
         this.y = newPosition.y;
+
+        const elemlist =  playWindow.vpRef.children;
+        touchedObject = elemlist.filter(collisionCheck, this);
+
+        if (touchedObject.length > 0) 
+        {
+            touchedObject[0].touched = true; 
+        }
     }
-    if (this.x < 20)
+
+    if (this.x < 20) // wechseln der Fester
     {
         this.parent.dragReceiver.addChild(this); 
         this.x = 800;
         this.y = 100;
         this.dragging = true; 
     }
+
     //console.log(this.x, this.parent.name);
     event.stopPropagation();
 }
 
 
-function pointerMove(event) {
-    if (this.dragging && !prio ) {
-            const newPosition = this.data.global;
-            aNew.x = newPosition.x;
-            aNew.y = newPosition.y;
-    }
-}
+// function pointerMove(event) {
+//     if (this.dragging && !prio ) 
+//     {
+//             const newPosition = this.data.global;
+//             aNew.x = newPosition.x;
+//             aNew.y = newPosition.y;
+//     }
+// }
 
-function pointerDown(event) {
+// function pointerDown(event) {
    
-    console.log("Back");
+//     console.log("Back");
 
-    if (!prio)
-    {
-        aNew = strategyGenerator([[2, 'rl'],[1, 'mt'], [3, 'ph']]);
-        this.data = event.data;
-        aNew.alpha = 0.5;
-        aNew.pivot.x = aNew.width / 2;
-        aNew.pivot.y = aNew.height / 2;
-        this.dragging = true;
+//     if (!prio)
+//     {
+//         aNew = strategyGenerator([[2, 'rl'],[1, 'mt'], [3, 'ph']]);
+//         this.data = event.data;
+//         aNew.alpha = 0.5;
+//         aNew.pivot.x = aNew.width / 2;
+//         aNew.pivot.y = aNew.height / 2;
+//         this.dragging = true;
 
-        const newPosition = this.data.global; 
-        aNew.x = newPosition.x; 
-        aNew.y = newPosition.y; 
-        stage.addChild(aNew);
-    }
-}
+//         const newPosition = this.data.global; 
+//         aNew.x = newPosition.x; 
+//         aNew.y = newPosition.y; 
+//         stage.addChild(aNew);
+//     }
+// }
 
-function pointerUp(event) {
-    if (this.dragging && !prio )
-    {
-        this.dragging = false;
-        aNew.alpha = 1.0; 
-    }
-}
+// function pointerUp(event) {
+//     if (this.dragging && !prio )
+//     {
+//         this.dragging = false;
+//         aNew.alpha = 1.0; 
+//     }
+// }

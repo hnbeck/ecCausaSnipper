@@ -55,7 +55,10 @@ newTree(Tree) :-
 	goalAsSubtree(Goal, root, Tree),
 	embodySubtree(Tree, JSObject, 1),
 	holdTerm( Tree, gsnTree),
-	addStrategy(1).
+	realStrategy(1,0, _,_), % Strategy with mass 0 are "gosts, in the Ressourcewindow"
+	realStrategy(2,0, _,_),
+	realStrategy(3,0, _,_),
+	realStrategy(4,0, _,_).
 
 showTree :-
 	state(gsnTree, Tree), 
@@ -144,19 +147,22 @@ realGoal(Level, V, Goal, JSObject) :-
 				argument(4, mt), 
 				argument(6, ph),
 				Explanation),
-	body(Level, 1000, V, Body),
+	body(Level, 100, V, Body),
 	newGSN(goal, Body, Explanation, Goal),
 	embodyGoal(Goal, JSObject).
 
 % in future explanation is defined from other place
-realStrategy(Level, Strategy, JSObject) :-
+realStrategy(Level, Mass, Strategy, JSObject) :-
 	explanation(argument(10, rl),
 				argument(10, mt), 
 				argument(10, ph),
 				Explanation),
-	body(Level, 1000, 0, Body),
+	body(Level, Mass, 0, Body),
 	newGSN(strategy, Body, Explanation, Strategy),
 	embodyStrategy(Strategy, JSObject).
+
+realStrategy(Level, Strategy, JSObject) :-
+	realStrategy(Level, 100, Strategy, JSObject).
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
@@ -192,20 +198,25 @@ updateTree(ID, Level, Level, Tree, Tree2) :-
 	subtree(id, Tree, ID),
 	newStrategy(Level, Tree, Tree2),!.
 
-updateTree(ID, Level, Level2, Tree, Tree2) :-
+updateTree(ID, Level, Level2, Tree, Tree3) :-
 	subtree(childs, Tree, Childs),
-	updateChilds(ID, Childs, Level, Level2, Tree, Tree2).
+	subtree(mass, Tree, Mass),
+	updateChilds(ID, Level, Level2, Childs, Childs2, Mass, NewMass),
+	subtree(childs, Childs2, Tree, Tree2),
+	subtree(mass, NewMass, Tree2, Tree3).
 
 % update the childs of a tree
-updateChilds(ID, [], Level, Level, Tree, Tree) :- false.
+updateChilds(ID, [], Level, Level, Childs, Childs, Mass, Mass) :- false.
 
 % go over all child subtrees
-updateChilds(ID, [H | T], Level, Level2, Tree, Tree2) :-
-	updateTree(ID, H,  Level, Level2, Tree, Tree2),!.
+updateChilds(ID, Level, Level3, [H | T],  [H2 | T], Mass, NewMass) :-
+	Level2 is Level + 2, 
+	updateTree(ID, Level2, Level3, H, H2),! ,
+	subtree(mass, H2, MassChilds), 
+	NewMass is Mass + MassChilds.
 
-updateChilds(ID, [H | T], Level, Level4, Tree, Tree2) :-
-	Level2 is Level + 1, 
-	updateChilds(ID, T, Level3, Level4, Tree, Tree2).
+updateChilds(ID, Level, Level2, [H | T],  [H | T2], Mass, Mass2) :-
+	updateChilds(ID, Level, Level2, T, T2, Mass, Mass2).
 
 
 goalAsSubtree(Goal, root, Subtree) :-
@@ -275,10 +286,10 @@ embodyStrategy(Strategy, JSObject) :-
 	apply(JSFkt, ['strategy', ID, BList, E], JSObject).
 
 % embody new subtree - it contains only a goal per definition
-embodySubtree(subtree(Goal, [], [], _, _), JSObject,  Level) :-
+embodySubtree(subtree(Goal, [], [], _, Parent), JSObject,  Level) :-
 	goal(id, Goal, ID),
 	goal(mass, Goal, Mass),
-	ST = [JSObject, [], [], Mass],
+	ST = [JSObject, [], [], Mass, Parent],
 	prop('addSubtree', JSFkt2),
 	apply(JSFkt2, [Level, ST, ID], _),!.
 
