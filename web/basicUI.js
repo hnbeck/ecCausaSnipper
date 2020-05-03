@@ -1,4 +1,12 @@
-//Create a Pixi Application
+//Important constants
+const strategyIX = 1; 
+const childsIX = 2; 
+const treeMassIX = 3; 
+const parentIX = 4; 
+const headIX = 0; 
+const viewportSize = 4000; 
+
+// context objects
 var stage; 
 var playWindow; 
 var ressourceWindow;
@@ -6,11 +14,8 @@ var session = pl.create(2000);
 var parsed = false; 
 var canvasWidth;
 var canvasHeight;
-const headIX = 0; 
-const strategyIX = 1; 
-const childsIX = 2; 
-const treeMassIX = 3; 
-const parentIX = 4; 
+
+
 var touchedObject = []; 
 
 var maxLayer; 
@@ -121,7 +126,7 @@ function pixiAssets()
 
     // generate the windows, one for the tree and one as ressource store
     playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
-                                        4000, 4000, canvasWidth-200, canvasHeight); 
+                                        viewportSize, viewportSize, canvasWidth-200, canvasHeight); 
     ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
                                             200, 1000, 200, canvasHeight); 
 
@@ -155,6 +160,15 @@ function pixiAssets()
     requestAnimationFrame(pixiUpdate);
 }
 
+function adjustLine(line, x1, y1, x2, y2) 
+{
+    line.clear();  
+    line.lineStyle(5, 0x5F5F5A, 10);
+    line.moveTo(x1, y1);
+    line.lineTo(x2, y2);
+
+    return line; 
+}
 // Auftrieb dy = -k*y
 // gewicht  dY = l*m
 // dy = dY -> -k*y = l*m wenn y-Soll erreicht  
@@ -168,8 +182,7 @@ function pixiAssets()
 function pixiUpdate() 
 {
     const elemlist =  playWindow.vpRef.children;
-    var line; 
-
+    
     ///////// vertical layout
     // just walk through all elements in the playWindwow viewport layer
     for (var i = 0; i < elemlist.length; i++)
@@ -193,12 +206,8 @@ function pixiUpdate()
             // take the root
             const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
             const root = rootSt[headIX];
-            line = elemlist[i].incomming;
-            line.clear();  
-            line.lineStyle(5, 0x5F5F5A, 10);
-            line.moveTo(elemlist[i].x, elemlist[i].y);
-            line.lineTo(root.x, root.y);
-            
+
+            adjustLine(elemlist[i].incomming, elemlist[i].x, elemlist[i].y, root.x, root.y);
         }
     }
 
@@ -220,7 +229,6 @@ function pixiUpdate()
     
             for (var n = 0; n < childs.length; n++)
             {
-
                 const subsubtreeID = childs[n];
                 const subsubtree = subtreeList[subsubtreeID];
                 const treeMass = subsubtree[treeMassIX]*0.5;
@@ -250,49 +258,25 @@ function pixiUpdate()
 
                     const pedalForce =  goal.v*treeMass*160/(100*r)*sign2;
                     const attraction =  goal.mass/100*sign;  
+                    var dF = pedalForce - attraction;
                     
-                    if (Math.abs(pedalForce - attraction) > 0.01)
+                    if (Math.abs(dF) < 0.01)
+                        dF = 0.0; 
+
+                    goal.x += (dF)*5;
+                    // if there is a strategy move it too
+                    if  (!Array.isArray(strategy))
                     {
-                        goal.x += (pedalForce - attraction)*5;
-                        // if there is a strategy move it too
-                        if  (!Array.isArray(strategy))
-                        {
-                            strategy.x = goal.x; 
-                            // adjust the line
-                            line = strategy.incomming; 
-                            line.clear(); 
-                            line.lineStyle(5, 0x5F5F5A, 10);
-                            line.moveTo(goal.x, goal.y);
-                            line.lineTo(strategy.x, strategy.y);
-                        }
+                        strategy.x = goal.x; 
+                        // adjust the lin
+                        adjustLine(strategy.incomming, goal.x, goal.y,strategy.x, strategy.y);
+                    }
                         //console.log("r", center, element.x, r, pedalForce - attraction);
                         //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
-                    }
-                    else
-                    {
-                        // to come arount numeric unprecision
-                        goal.x = headGoal.x + r; 
-                        if  (!Array.isArray(strategy))
-                        {
-                            strategy.x = goal.x; 
-                            // adjust the line
-                            line = strategy.incomming; 
-                            line.clear(); 
-                            line.lineStyle(5, 0x5F5F5A, 10);
-                            line.moveTo(goal.x, goal.y);
-                            line.lineTo(strategy.x, strategy.y);
-                        }
-                    }
                 }
                 // redraw the line
                 headStrategy.x = headGoal.x
-                line = goal.incomming; 
-                line.clear(); 
-                line.lineStyle(5, 0x5F5F5A, 10);
-                line.moveTo(headStrategy.x, headStrategy.y);
-                line.lineTo(goal.x, goal.y);
-
-
+                adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
             }
         }
     }
@@ -343,7 +327,6 @@ function onDragEnd()
 {
     this.alpha = 1;
     this.dragging = false;
-    // set the interaction data to null
     this.data = null;
     prio = false; 
     //console.log("drag end");
@@ -382,7 +365,7 @@ function onDragMove()
         }
     }
 
-    if (this.x < 20) // wechseln der Fester
+    if ((this.x < 20)  && (this.parent.name == 'ressource'))// wechseln der Fester
     {
         this.parent.dragReceiver.addChild(this); 
         this.x = 800;

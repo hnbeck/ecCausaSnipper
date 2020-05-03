@@ -19,6 +19,7 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
     viewport.buttonMode = false; 
     viewport.filter = configList[0];
     viewport.name = configList[0].name;
+    viewport.pivot.set(0.5); 
 
     viewport
             .on('pointerdown', onPointerStart)
@@ -198,6 +199,9 @@ function onPointerMove(event)
         {
             if (this.scaling) 
             {
+                const oldScaleX = this.scale.x; 
+                const oldScaleY = this.scale.y; 
+
                 const index = this.touchpoints.findIndex(selectPoint, this.data);
                 this.touchpoints[index][px] = this.data.global.x; 
                 this.touchpoints[index][py] = this.data.global.y;
@@ -217,6 +221,11 @@ function onPointerMove(event)
                 this.scale.x += this.scale.x*scaleDelta;
                 this.scale.y += this.scale.y*scaleDelta;
                 //console.log("Scale", this.lastdistance, distance, scaleDelta,  this.scale.x);
+
+                // Positionskorretur
+                // startposition des viewport in x war  -viewportSize/2 * scale + winWidth/2
+                this.x = this.x + viewportSize/2 * (oldScaleX -this.scale.x); 
+                //this.y = this.y +  (oldScaleY - this.scale.y); 
             }
         }
     }
