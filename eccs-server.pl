@@ -19,7 +19,7 @@
 :- use_module(library(pengines)).
 :- use_module(library(sandbox)).
 
-% :- use_module(pengine_sandbox:ecBlackJack).
+:- use_module(pengine_sandbox:ecCausaSnipper).
 
 
 :- http_handler(files(.), serve_files,  [prefix]).

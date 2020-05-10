@@ -85,7 +85,8 @@ function kFactor(level) {
     return 20/term; 
 }
 
-// type list is of format [[number, type], [number, type]....]
+// explanation list is of format [[number, type], [number, type],[number, type]]
+// transform list is of same format, but the first is the header, der rest the body
 
 // das gsn Element hat Masse, geschwindigkeit, Auftriebskonstante
 // body ist die Liste aus [masse, kfactor, v]
@@ -95,73 +96,107 @@ function gsnElemGenerator(elemType, id, body, explanation)
 //function gsnElemGenerator(ElemType, name, TypeList) {
     console.log("Elem Generator ", elemType, id, body, explanation);
     // x,Y muss noch auf default gesetzt werden
-    const textMargin = 5;
+   
     const elemCont = new PIXI.Container();
     var parentContainer =  playWindow.vpRef;
     var lineAlpha = 1.0; 
-
-    elemCont.interactive = true; 
-    // Text style for numbers
-    const style = new PIXI.TextStyle({
-        fontFamily: 'Arial',
-        fontSize: 14,
-        fill: '#FFFFFF'
-    });
-
+    var midSymbol; 
     var ressourceID;
     var correction = 0; 
 
- // embodyment
+    // embodyment
+    elemCont.id = id; 
+    elemCont.name = elemType; 
+    elemCont.interactive = true; 
     elemCont.mass = body[iMass];
     elemCont.k = body[iKFact];
     elemCont.v = body[iV];
+    // for interaction
     elemCont.touched = false; 
     elemCont.dragging = false; 
 
-    const dx = elemCont.v; 
-    elemCont.x = 2000 + dx; 
-    elemCont.y = canvasHeight/2; 
-
+    elemCont 
+            .on('pointerdown', onDragStart)
+            .on('pointerup', onDragEnd)
+            .on('pointerupoutside', onDragEnd)
+            .on('pointermove', onDragMove);
+    
     switch(elemType)
     {
         case ('strategy'): 
             ressourceID = "/graphics/strategy.png"; 
             correction = 5; 
-            if (elemCont.mass == 0) // when es ein Ghost ist
+            explanation.push([0, 'ar']);
+           
+            // strategies residing in the ressource bar have no mass
+            if (elemCont.mass == 0) 
             {   
                 parentContainer = ressourceWindow.vpRef; 
                 elemCont.x = ressourceWindow.width/2;
                 elemCont.y = numberStrategy*layerheight;
                 numberStrategy++;
                 lineAlpha = 0.0; 
+            } 
+            else
+            {
+                elemCont.x = 2000; 
+                elemCont.y = canvasHeight/2;
             }
-            
+
         break;
 
         case ('solution'):
-             ressourceID = "/graphics/solution.png"; 
+            elemCont.x = 2000; 
+            elemCont.y = canvasHeight/2;
+            ressourceID = "/graphics/solution.png"; 
+            midSymbol = null; 
         break
 
         case ('goal') :
-             ressourceID = "/graphics/goal.png"; 
+            const dx = elemCont.v; 
+            elemCont.x = 2000 + dx; 
+            elemCont.y = canvasHeight/2;
+            ressourceID = "/graphics/goal.png"; 
+            midSymbol = null; 
+            
         break; 
     }
    
     const gsnElement = new PIXI.Sprite(
                 PIXI.loader.resources[ressourceID].texture
             );  
+    gsnElement.anchor.set(0.5);
 
     elemCont.addChild(gsnElement);
-    elemCont.name = elemType; 
-    gsnElement.anchor.set(0.5);
-    elemCont.id = id; 
-    elemCont 
-            .on('pointerdown', onDragStart)
-            .on('pointerup', onDragEnd)
-            .on('pointerupoutside', onDragEnd)
-            .on('pointermove', onDragMove);
+    
+    lettering(elemCont, gsnElement, explanation, correction);
 
-  
+    // Linie hinzufügen
+    const line = new PIXI.Graphics();
+        // jetzt noch die Linie
+    line.lineStyle(5, 0x5F5F5A, 10);
+    line.moveTo(elemCont.x, elemCont.y);
+    line.lineTo(elemCont.x, elemCont.y-1);
+    line.zIndex = -id;
+    line.alpha = lineAlpha; 
+    playWindow.vpRef.addChild(line); // container global
+   
+    elemCont.incomming = line;
+    parentContainer.addChild(elemCont);
+
+    return elemCont;
+}
+
+function lettering(elemCont, gsnElement, explanation, correction)
+{
+     const textMargin = 5;
+
+     const style = new PIXI.TextStyle({
+        fontFamily: 'Arial',
+        fontSize: 14,
+        fill: '#FFFFFF'
+    });
+
     const shiftX = gsnElement.width/2; 
     const shiftY = gsnElement.height/2; 
 
@@ -187,25 +222,19 @@ function gsnElemGenerator(elemType, id, body, explanation)
         elemCont.addChild(element);
     }
 
-   
-    // Linie hinzufügen
-    const line = new PIXI.Graphics();
-        // jetzt noch die Linie
-    line.lineStyle(5, 0x5F5F5A, 10);
-    line.moveTo(elemCont.x, elemCont.y);
-    line.lineTo(elemCont.x, elemCont.y-1);
-    line.zIndex = -id;
-    line.alpha = lineAlpha; 
-    playWindow.vpRef.addChild(line); // container global
-   
-    elemCont.incomming = line;
-    parentContainer.addChild(elemCont);
+    // strategy gets an arrow symbol
+    if (explanation.length == 4)
+    {
+        const midSymbol = pixiObjects[3];
 
-    return elemCont;
+        midSymbol.x = layout['arw'][0]-shiftX + correction + 6;
+        midSymbol.y = layout['arw'][1]-shiftY;
+        elemCont.addChild(midSymbol);
+    }
 }
 
-function calcLayout(element) {
-
+function calcLayout(element) 
+{
     var layout;
 
     const w = element.width; 
@@ -217,14 +246,15 @@ function calcLayout(element) {
 
     var layout = {  rl: [margin, h - margin], 
                     mt: [midX, h - margin],
-                    ph: [midX, midY]}
+                    ph: [midX, midY],
+                    arw:[margin + midX/2, h - margin]};
     return layout; 
 }
 // generates a pixi object according the type
 // elem is of format [number, type]
-function symbolGenerator(elem) {
+function symbolGenerator(argument) {
 
-    const typeID = elem[1];
+    const typeID = argument[1];
     var type; 
 
     switch(typeID) {
@@ -246,6 +276,14 @@ function symbolGenerator(elem) {
                 PIXI.loader.resources["/graphics/auge.png"].texture
             );
             type.scale.set(0.4);
+            break; 
+        case 'ar':
+            type = new PIXI.Sprite(
+                PIXI.loader.resources["/graphics/arrow.png"].texture
+            );
+            type.anchor.x = 0.5; 
+            type.scale.x = 0.2;
+            type.scale.y = 0.3;
     }   
     type.anchor.y = 1.0; 
 

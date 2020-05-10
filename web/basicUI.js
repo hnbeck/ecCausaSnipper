@@ -10,13 +10,15 @@ const viewportSize = 4000;
 var stage; 
 var playWindow; 
 var ressourceWindow;
-var session = pl.create(2000);
+var session = pl.create(10000);
 var parsed = false; 
 var canvasWidth;
 var canvasHeight;
-
+var result; 
 
 var touchedObject = []; 
+var callBackQueue = []; 
+var cbCounter = 0; 
 
 var maxLayer; 
 
@@ -35,46 +37,101 @@ function waitforParsed(msec, count)
     console.log("Wait is over", parsed, count);
 }
 
-function init_Prolog() {
-    // load tau
-       $.get("/web/webProlog.pl", function(data) {
-        parsed = session.consult(data);
-        session.query("init.");
-        session.answer(function (answer) {
-            session.query("newTree(X).");
-            session.answer();} );
-    });
-    
+//////////////////////////////// some Prolog initialization stuff ///////////////////////////////////
+
+function start_Prolog()
+{
     // Tau is loaded, now pengine and during this also init tau
     pengine = new Pengine({
         oncreate: handleCreate, 
-        //onsuccess: handleOutput,
+        onsuccess: handleOutput,
         destroy: false
     });     
+}
 
-    console.log('Prolog Init done');
+function init_Prolog() {
+    // load tau
+        if (!parsed)
+        {
+            $.get("/web/webProlog.pl", function(data) {
+                parsed = session.consult(data);
+                session.query("init.");
+                session.answer( function (answer) {
+                    start_Prolog(); 
+                })
+            });
+           
+        }
 }
-// here are the Pengine handle functions
+
+//////////////////  here are the Pengine handle functions //////////////////
+
 function handleCreate() {
-     // init tau prolog
-    //session.query("state(gsntree, A).");
-    //session.answer(printAnswer); 
-    
+
     // call the init of the game at SWI Prolog
-    //pengine.ask('createGame(P1, P2, Flag, Msg)');
-}
+    pengine.ask('createGame(Msg)');
 // send a query to pengine = SWI Prolog = Sever Code
+}
+
+// Pengine handle function for reveiving SWI Prolog answer
+// at the first call the initialized tree will be required
+
+function handleOutput()
+{
+    var resList = []; 
+
+    for (x in this.data[0]){
+        // properties must be lowercase in order for Tau Prolog
+        this.data[0][x.toLowerCase()] = this.data[0][x];
+        this.data[0][x].delete;
+        resList.push(x.toLowerCase());
+    }
+    // store the answer of Pengine (=JSON object) into global variable 
+    result = this.data[0];
+    console.log("Pengine Answer", result);
+    
+    // analyse the result taken from Pengine. This will result in updated
+    // knowledge base (=new predicates) in Tau Prolog
+    session.query("takeResult(["+ resList.toString() + "], result, Term).");
+    session.answer(executeQuery);
+}
+
+
 function sendPengine() {
     var query = $("#Tauhtml").text();
     //console.log("Query will be: " + query);
     pengine.ask(query);
 }
+
 var printAnswer = function(answer){
     // Debug code
     $("#Tauout").append(pl.format_answer(answer));
     $("#Tauout").append("<br>");
     console.log(' Tau answer:' + answer);
 }
+
+
+function executeQuery(answer) 
+{
+    if (callBackQueue.length  == 0)
+    {
+        console.log("Pengine Ask");
+        callBackQueue.push('newTree(X).')
+        pengine.ask('genInitalObjects(Goal, 3, SList)');
+    }
+    else
+    {
+        if (callBackQueue.length >0)
+        {
+            console.log("Tau ask");
+            const query = callBackQueue.pop();
+            session.query(query);
+            session.answer( console.log("done:", query));
+        }
+    }
+}
+
+//////////////////// ////////////////// Graphics setup ////////////////////////////////
 
 function pixiStart() 
 {
@@ -97,6 +154,7 @@ function pixiStart()
         "/graphics/ruler.png",
         "/graphics/bt_scaleup.png",
         "/graphics/bt_scaledown.png",
+        "/graphics/arrow.png",
       ])
       .load(pixiAssets);
       prio = false; 
@@ -147,8 +205,8 @@ function pixiAssets()
 
     stage.interactive = false;
     stage.buttonMode = false;   
-  
-    init_Prolog();
+
+    init_Prolog(); 
 
     // waitforParsed(500, 1);
     console.log("und weiter");
@@ -334,15 +392,16 @@ function onDragEnd()
     if (touchedObject.length > 0 )
     {
         const id = touchedObject[0].id;
-        session.query("addStrategy("+id+").");
-        session.answer(); 
+        session.query("addStrategy("+id+", "+ this.id +").");
+        console.log("ids", id, this.id);
+        session.answer( function(answer){
+            session.query("showTree.");
+            session.answer();
+            }); 
         touchedObject[0].touched = false; 
         touchedObject = []; 
         playWindow.vpRef.removeChild(this);
     }
-
-    session.query("showTree.");
-    session.answer();
 
     // hier Tau Aufrfen
     event.stopPropagation();

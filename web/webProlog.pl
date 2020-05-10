@@ -19,8 +19,8 @@
 
 % setup the initial next player and the deck costume
 init :-
-	holdTerm(0, noGSNElement),
-	write('Tau Prolog: done3').
+	holdTerm(0, gsnCounter),
+	write('Tau Prolog: done4').
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -50,15 +50,40 @@ init :-
 
 % GL = Goal, St = Strukture, So = Solution, 
 
+% 
 newTree(Tree) :-
-	realGoal(1, 0, Goal, JSObject),
-	goalAsSubtree(Goal, root, Tree),
-	embodySubtree(Tree, JSObject, 1),
-	holdTerm( Tree, gsnTree),
-	realStrategy(1,0, _,_), % Strategy with mass 0 are "gosts, in the Ressourcewindow"
-	realStrategy(2,0, _,_),
-	realStrategy(3,0, _,_),
-	realStrategy(4,0, _,_).
+	newGoal(1, 0, root, _, NewSubtree),
+	holdTerm( NewSubtree, gsnTree),
+	ressources.
+
+
+ressources :-
+	state(slist, slist(List)),
+	ressource(List, 1).
+
+ressource([], _) :-!.
+
+ressource([H|T], Level) :-
+	H = strategy(ID, Exp),
+	genStrategy(ID, Level, 0, Strategy),
+	realStrategy(1, Strategy, _),
+	Level2 is Level + 1, 
+	ressource(T, Level2).
+	
+
+explanationFromID(ID, Explanation) :-
+	state(slist, slist(List)),
+	expByID(List, ID, Explanation).
+
+expByID([], _, _) :-!.
+
+expByID([H|T], ID, Exp) :-
+	H = strategy(ID, Exp).
+
+expByID([H|T], ID, Exp) :-
+ 	H = strategy(ID2, _),
+	expByID(T, ID, Exp).
+
 
 showTree :-
 	state(gsnTree, Tree), 
@@ -77,6 +102,14 @@ explanation(argument(N1, B1),
 	argument(N2, B2, B),
 	argument(N3, B3, C).
 
+transformPattern(RuleList).
+
+transform(rl, Num, ph, Num2).
+transform(ph, Num, rl, Num2).
+transform(mt, Num, ph, Num2).
+transform(rl, Num, ph, Num2, mt, Num3).
+transform(ph, Num, rl, Num2, mt, Num3).
+transform(mt, Num, ph, Num2, rl, Num3).
 
 % physic body (masse, k-Factor, rotation speed)
 %body(Mass, KFac, V).
@@ -136,47 +169,42 @@ subtree(mass, M, subtree(G, S, C, _, P), subtree(G, S, C, M, P)).
 %%%%%%%%%%%%%%%%%%%%% Generators %%%%%%%%%%%%%%%%%%%%%%%%
 
 newGSN(Type, Body, Explanation, Element) :-
-	state(noGSNElement, No),
+	state(gsnCounter, No),
 	No2 is No + 1, 
-	holdTerm(No2, noGSNElement),
+	holdTerm(No2, gsnCounter),
 	Element =.. [Type, No2, Body, Explanation].
 
 % in future explanation will be some kind of randomness
-realGoal(Level, V, Goal, JSObject) :-
-	explanation(argument(10, rl),
-				argument(4, mt), 
-				argument(6, ph),
-				Explanation),
+genGoal(Level, V, Goal) :-
+	state(goal, A),
+	state(goal, goal(ID, Explanation)),
 	body(Level, 100, V, Body),
-	newGSN(goal, Body, Explanation, Goal),
-	embodyGoal(Goal, JSObject).
+	newGSN(goal, Body, Explanation, Goal).
+
+genStrategy(ID, Level, Strategy) :-
+	genStrategy(ID, Level, 0, Strategy).	
 
 % in future explanation is defined from other place
-realStrategy(Level, Mass, Strategy, JSObject) :-
-	explanation(argument(10, rl),
-				argument(10, mt), 
-				argument(10, ph),
-				Explanation),
+genStrategy(ID, Level, Mass, Strategy) :-
+	explanationFromID(ID, Explanation),
 	body(Level, Mass, 0, Body),
-	newGSN(strategy, Body, Explanation, Strategy),
-	embodyStrategy(Strategy, JSObject).
+	newGSN(strategy, Body, Explanation, Strategy).
 
-realStrategy(Level, Strategy, JSObject) :-
-	realStrategy(Level, 100, Strategy, JSObject).
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
 newGoal(Level, V, Parent, Parent2, NewSubtree) :-
-	realGoal(Level, V,  Goal, JSObject),
+	genGoal(Level, V,  Goal),
 	goalAsSubtree(Goal, Parent, NewSubtree),
 	subtreePlusGoal(NewSubtree, Parent, Parent2),
-	embodySubtree(NewSubtree, JSObject, Level),
-	syncSubtree(child, Parent2, NewSubtree).
+	realSubtree(Level, Goal, Parent2, NewSubtree).
 
-newStrategy(Level, Subtree, Subtree2) :-
-	realStrategy(Level, Strategy, JSObject),
+
+newStrategy(ID, Level, Subtree, Subtree2) :-
+	genStrategy(ID, Level, 100,  Strategy),
 	subtreePlusStrategy(Level, Strategy, Subtree, Subtree2),
-	syncSubtree(strategy, Subtree2, JSObject).
+	realStrategy(Level, Strategy, Subtree2).
+	
 
 % generate the child goals of a strategy
 newChildGoals(Strategy, Level, Subtree2, Subtree4) :-
@@ -188,35 +216,35 @@ newChildGoals(Strategy, Level, Subtree2, Subtree4) :-
 
 % in this form more a matter of test
 % StID is subtree ID = ID of head goal of this subtree
-addStrategy(StID) :-
+addStrategy(TreeID, ID) :-
 	state(gsnTree, Tree),
-	updateTree(StID, 2, Level2, Tree, Tree2),
+	updateTree(TreeID, ID, 2, Level2, Tree, Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
-updateTree(ID, Level, Level, Tree, Tree2) :-
-	subtree(id, Tree, ID),
-	newStrategy(Level, Tree, Tree2),!.
+updateTree(TreeID, ID, Level, Level, Tree, Tree2) :-
+	subtree(id, Tree, TreeID),
+	newStrategy(ID, Level, Tree, Tree2),!.
 
-updateTree(ID, Level, Level2, Tree, Tree3) :-
+updateTree(TreeID, ID, Level, Level2, Tree, Tree3) :-
 	subtree(childs, Tree, Childs),
 	subtree(mass, Tree, Mass),
-	updateChilds(ID, Level, Level2, Childs, Childs2, Mass, NewMass),
+	updateChilds(TreeID, ID, Level, Level2, Childs, Childs2, Mass, NewMass),
 	subtree(childs, Childs2, Tree, Tree2),
 	subtree(mass, NewMass, Tree2, Tree3).
 
 % update the childs of a tree
-updateChilds(ID, [], Level, Level, Childs, Childs, Mass, Mass) :- false.
+updateChilds(TreeID, ID, Level, Level, [], [], Mass, Mass) :- false.
 
 % go over all child subtrees
-updateChilds(ID, Level, Level3, [H | T],  [H2 | T], Mass, NewMass) :-
+updateChilds(TreeID, ID, Level, Level3, [H | T],  [H2 | T], Mass, NewMass) :-
 	Level2 is Level + 2, 
-	updateTree(ID, Level2, Level3, H, H2),! ,
+	updateTree(TreeID, ID,  Level2, Level3, H, H2),! ,
 	subtree(mass, H2, MassChilds), 
 	NewMass is Mass + MassChilds.
 
-updateChilds(ID, Level, Level2, [H | T],  [H | T2], Mass, Mass2) :-
-	updateChilds(ID, Level, Level2, T, T2, Mass, Mass2).
+updateChilds(TreeID, ID, Level, Level2, [H | T],  [H | T2], Mass, Mass2) :-
+	updateChilds(TreeID, ID, Level, Level2, T, T2, Mass, Mass2).
 
 
 goalAsSubtree(Goal, root, Subtree) :-
@@ -237,6 +265,9 @@ subtreePlusStrategy(Level, Strategy, subtree(Goal, [], [], M, Parent), Subtree3)
 	M3 is M + M2, 
 	Subtree2 = subtree(Goal, Strategy, [], M3, Parent),
 	newChildGoals(Strategy, Level, Subtree2, Subtree3).
+
+
+subtreePlusGoal(GoalAsSubtree, root, root) :-!.
 
 % new goal as subtree will be added to a parent
 subtreePlusGoal(GoalAsSubtree, Parent, Parent3) :-
@@ -266,6 +297,20 @@ msg2JS(DOMId) :-
 	writeHTML(DOMId, Msg, _).
 
 %%%%%%%%%%%% embodiement %%%%%%%%%%%%%%%%
+
+% setze den neuen Subtree in ein embodyment um und verlinke ihn
+realSubtree(1, Goal, root, Subtree) :- 
+	embodyGoal(Goal, JSObject),
+	embodySubtree(Subtree, JSObject, 1),!.
+
+realSubtree(Level, Goal, Parent, Subtree) :- 
+	embodyGoal(Goal, JSObject),
+	embodySubtree(Subtree, JSObject, Level),
+	syncSubtree(child, Parent, Subtree).
+
+realStrategy(Level, Strategy, Subtree) :-
+	embodyStrategy(Strategy, JSObject),
+	syncSubtree(strategy, Subtree, JSObject).
 
 % generate PIXI object from this
 embodyGoal(Goal, JSObject) :-
@@ -305,6 +350,8 @@ syncSubtree(child, Parent, ChildSubtree) :-
 	subtree(mass, ChildSubtree, Mass),
 	prop('updateSubtreeChild', JSFkt),
 	apply(JSFkt, [ID, ChID, Mass], _).
+
+syncSubtree(strategy, [], _) :-!.
 
 syncSubtree(strategy, Subtree, JSObject) :-
 	subtree(id, Subtree, ID),
@@ -398,7 +445,7 @@ parseTerm(JSObject, TauTerm) :-
 % if elem is a list
 parseList([], []).
 parseList([Head | Tail ], [Head2 | Tail2]) :-
-	(is_list(Head) -> 
+	(is_list(Head) -> 	
 		parseList(Head, Head2);
 		(atomic(Head) -> 
 			Head2 = Head; 
