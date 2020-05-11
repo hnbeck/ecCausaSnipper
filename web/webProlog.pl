@@ -20,7 +20,7 @@
 % setup the initial next player and the deck costume
 init :-
 	holdTerm(0, gsnCounter),
-	write('Tau Prolog: done4').
+	write('Tau Prolog: done7'). 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -52,9 +52,9 @@ init :-
 
 % 
 newTree(Tree) :-
+	ressources, 
 	newGoal(1, 0, root, _, NewSubtree),
-	holdTerm( NewSubtree, gsnTree),
-	ressources.
+	holdTerm( NewSubtree, gsnTree).
 
 
 ressources :-

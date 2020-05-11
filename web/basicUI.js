@@ -69,7 +69,7 @@ function init_Prolog() {
 function handleCreate() {
 
     // call the init of the game at SWI Prolog
-    pengine.ask('createGame(Msg)');
+    pengine.ask('createGame(8, Msg)');
 // send a query to pengine = SWI Prolog = Sever Code
 }
 
@@ -117,7 +117,7 @@ function executeQuery(answer)
     {
         console.log("Pengine Ask");
         callBackQueue.push('newTree(X).')
-        pengine.ask('genInitalObjects(Goal, 3, SList)');
+        pengine.ask('genInitalObjects(Goal, SList)');
     }
     else
     {
@@ -392,11 +392,11 @@ function onDragEnd()
     if (touchedObject.length > 0 )
     {
         const id = touchedObject[0].id;
-        session.query("addStrategy("+id+", "+ this.id +").");
-        console.log("ids", id, this.id);
+        const draggedID = this.id; 
         session.answer( function(answer){
-            session.query("showTree.");
-            session.answer();
+            callBackQueue.push('addStrategy(' + id +', '+ draggedID +').');
+            console.log("An Pengine ", 'addStrategy('+id+', '+ draggedID +')');
+            pengine.ask('addStrategy('+id+', '+ draggedID +')');
             }); 
         touchedObject[0].touched = false; 
         touchedObject = []; 
