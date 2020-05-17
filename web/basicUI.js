@@ -5,7 +5,7 @@ const treeMassIX = 3;
 const parentIX = 4; 
 const headIX = 0; 
 const viewportSize = 4000; 
-
+const ressourceSize = 250; 
 // context objects
 var stage; 
 var playWindow; 
@@ -117,7 +117,7 @@ function executeQuery(answer)
     {
         console.log("Pengine Ask");
         callBackQueue.push('newTree(X).')
-        pengine.ask('genInitalObjects(Goal, SList)');
+        pengine.ask('genInitalObjects(Goal, GSNList)');
     }
     else
     {
@@ -184,9 +184,9 @@ function pixiAssets()
 
     // generate the windows, one for the tree and one as ressource store
     playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
-                                        viewportSize, viewportSize, canvasWidth-200, canvasHeight); 
+                                        viewportSize, viewportSize, canvasWidth-ressourceSize, canvasHeight); 
     ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
-                                            200, 1000, 200, canvasHeight); 
+                                            ressourceSize, 1000, ressourceSize, canvasHeight); 
 
     layerHeight = 120; 
 
@@ -198,7 +198,7 @@ function pixiAssets()
     playWindow.y = 0;
     playWindow.vpRef.scale.set(0.5);
     playWindow.vpRef.sortableChildren = true; 
-    ressourceWindow.x = canvasWidth-200;
+    ressourceWindow.x = canvasWidth-ressourceSize;
     ressourceWindow.y = 0;
     
     ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
@@ -261,23 +261,55 @@ function pixiUpdate()
                 elemlist[i].y += updrive+gForce; 
             }
            
-            // take the root
-            const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
-            const root = rootSt[headIX];
+            if ((elemlist[i].name != 'solution') || (elemlist[i].v == 0))
+            {
 
-            adjustLine(elemlist[i].incomming, elemlist[i].x, elemlist[i].y, root.x, root.y);
+                const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
+                const root = rootSt[headIX];
+
+                adjustLine(elemlist[i].incomming, elemlist[i].x, elemlist[i].y, root.x, root.y);
+            }
+            // take the root
+           
+        }
+    }
+
+    // Ressourcen Solutions layout
+
+    for (var n = 0; n < solutionList.length-1; n++)
+    {
+        for (var m = n+1; m < solutionList.length; m++)
+        {
+            const dx = (solutionList[n].x-solutionList[m].x);
+            const gForce1  = solutionList[n].mass/(dx);
+            const gForce2  = solutionList[m].mass/(dx);
+            const attract1 = solutionList[n].v /20; 
+            const attract2 = solutionList[m].v /20; 
+
+            const resultForce = gForce2 + gForce1 - (attract2+attract1);
+            //console.log("resultForce", resultForce);
+
+            if ((Math.abs(resultForce) > 1) 
+                && (solutionList[n].dragging == false)
+                && (solutionList[m].dragging == false))
+            {
+                solutionList[n].x += resultForce;
+                solutionList[m].x -= resultForce;
+            }
         }
     }
 
     ///////// layer layout = horizontal layout
 
-    //1-based
+    //1-based 
+    // layer enthalten subtrees, jeder muss layoutet werden
+    // ein Subtree hat goal - Strategy oder Solution - Kindersubtrees
     for (var j = 1; j < layerList.length ; j+=2) 
     {
         const layer = layerList[j];
     
         // every subtree hangs with its head = the goal in the layer
-        // every subtree has (in general) this head goal, a strategy and child goals
+        // every subtree has (in general) this head goal, a strategy/solution and child goals
         for (var i = 0; i < layer.length; i++) 
         {
             const subtree = layer[i];
@@ -332,9 +364,13 @@ function pixiUpdate()
                         //console.log("r", center, element.x, r, pedalForce - attraction);
                         //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
                 }
-                // redraw the line
-                headStrategy.x = headGoal.x
+
                 adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
+            }
+            if (!Array.isArray(headStrategy)) 
+            {// redraw the line
+                headStrategy.x = headGoal.x;
+                adjustLine( headStrategy.incomming,  headStrategy.x, headStrategy.y,headGoal.x, headGoal.y);
             }
         }
     }
@@ -387,20 +423,36 @@ function onDragEnd()
     this.dragging = false;
     this.data = null;
     prio = false; 
-    //console.log("drag end");
-    
-    if (touchedObject.length > 0 )
+    console.log("drag end", this.name);
+
+    if (touchedObject.length > 0 ) 
     {
         const id = touchedObject[0].id;
         const draggedID = this.id; 
-        session.answer( function(answer){
-            callBackQueue.push('addStrategy(' + id +', '+ draggedID +').');
-            console.log("An Pengine ", 'addStrategy('+id+', '+ draggedID +')');
-            pengine.ask('addStrategy('+id+', '+ draggedID +')');
-            }); 
         touchedObject[0].touched = false; 
-        touchedObject = []; 
-        playWindow.vpRef.removeChild(this);
+       
+        if (this.name == 'strategy')
+        {
+            const query = 'addGoalChild(strategy,' + id +', '+ draggedID +')';
+            callBackQueue.push(query+'.');
+            console.log("an Pengine", query);
+            pengine.ask(query);
+            playWindow.vpRef.removeChild(this);
+            touchedObject = [];  
+        }
+
+        if (this.name == 'solution')
+        {
+            const query = 'addGoalChild(solution,' + id +', '+ draggedID +')';
+            callBackQueue.push(query+'.');
+            console.log("An Pengine ", query);
+            pengine.ask(query);
+            const n = solutionList.indexOf(this);
+            playWindow.vpRef.removeChild(this);
+            solutionList.splice(n, 1);
+            touchedObject = [];  
+        }
+       
     }
 
     // hier Tau Aufrfen

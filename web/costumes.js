@@ -7,7 +7,7 @@
 // layer is a list of subtrees, each subtree has a body
 // layerlist = [subtree1, subtree2....], with index = layer no
 var layerList = []; 
-
+var solutionList = []; 
 // subtreeList is a list of all subtrees, 
 // describing the embodyment of a subtree
 // subtree = [goal, strategy, [Subtrees], mass], this are the PIXI objects
@@ -20,7 +20,7 @@ var numberStrategy = 1;
 const iMass = 0; 
 const iKFact = 1; 
 const iV = 2; 
-
+var flipSign = -1;
 
 // subtree kommt von Prolog als Liste, fast wie der fertige Body
 // [['goal', ID, body, explanation], ['strategy', ID, Body, explanation], [...] , treemaxx]
@@ -31,6 +31,8 @@ const iV = 2;
 //      const parendIX = 4; 
 function updateSubtreeChild(idParent, idChild, childmass) 
 {
+    console.log("Subtrees at the moment ", subtreeList);
+
     const subtree = subtreeList[idParent];
     subtree[treeMassIX] += childmass; 
     subtree[childsIX].push(idChild); 
@@ -44,6 +46,8 @@ function updateSubtreeChild(idParent, idChild, childmass)
 
 function updateSubtreeStrategy(id, strategy, mass) 
 {
+    console.log("Subtrees at the moment ", subtreeList);
+
     const subtree = subtreeList[id];
     const parentID = subtree[parentIX];
 
@@ -52,6 +56,21 @@ function updateSubtreeStrategy(id, strategy, mass)
 
     propagateMass(parentID, subtree[treeMassIX]);
     console.log("Subtree strategy now", id, subtree);
+} 
+
+function updateSubtreeSolution(id, solution, mass) 
+{
+    console.log("Subtrees before solution at the moment ", subtreeList);
+
+    const subtree = subtreeList[id];
+    const parentID = subtree[parentIX];
+
+    solution.v = 0; 
+    subtree[strategyIX] = solution; // strategiesy and solution have the same place in subtree
+    subtree[treeMassIX] = mass; 
+
+    propagateMass(parentID, subtree[treeMassIX]);
+    console.log("Subtree solution now", id, subtree);
 } 
 
 function propagateMass(parentID, mass)
@@ -102,7 +121,8 @@ function gsnElemGenerator(elemType, id, body, explanation)
     var lineAlpha = 1.0; 
     var midSymbol; 
     var ressourceID;
-    var correction = 0; 
+    var symbolAlpha = 1.0; 
+    
 
     // embodyment
     elemCont.id = id; 
@@ -125,14 +145,13 @@ function gsnElemGenerator(elemType, id, body, explanation)
     {
         case ('strategy'): 
             ressourceID = "/graphics/strategy.png"; 
-            correction = 5; 
-            explanation.push([0, 'ar']);
+            explanation.push([-1, 'ar']);
            
             // strategies residing in the ressource bar have no mass
             if (elemCont.mass == 0) 
             {   
                 parentContainer = ressourceWindow.vpRef; 
-                elemCont.x = ressourceWindow.width/2;
+                elemCont.x = ressourceWindow.width/2-10;
                 elemCont.y = numberStrategy*layerheight;
                 numberStrategy++;
                 lineAlpha = 0.0; 
@@ -146,15 +165,20 @@ function gsnElemGenerator(elemType, id, body, explanation)
         break;
 
         case ('solution'):
-            elemCont.x = 2000; 
+            elemCont.x = viewportSize/2 + Math.random()*100*flipSign; 
             elemCont.y = canvasHeight/2;
+            flipSign *= -1; 
             ressourceID = "/graphics/solution.png"; 
             midSymbol = null; 
+            symbolAlpha = 0.8;
+            // in this case its a ressource solution (like mass = 0 for strategy)
+            if (elemCont.v > 0) 
+                solutionList.push(elemCont);
         break
 
         case ('goal') :
             const dx = elemCont.v; 
-            elemCont.x = 2000 + dx; 
+            elemCont.x = viewportSize/2 + dx; 
             elemCont.y = canvasHeight/2;
             ressourceID = "/graphics/goal.png"; 
             midSymbol = null; 
@@ -166,11 +190,11 @@ function gsnElemGenerator(elemType, id, body, explanation)
                 PIXI.loader.resources[ressourceID].texture
             );  
     gsnElement.anchor.set(0.5);
-
+    gsnElement.scale.set(symbolAlpha);
     elemCont.addChild(gsnElement);
     
-    lettering(elemCont, gsnElement, explanation, correction);
-
+    lettering(elemCont, gsnElement, explanation);
+ 
     // Linie hinzufügen
     const line = new PIXI.Graphics();
         // jetzt noch die Linie
@@ -187,7 +211,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
     return elemCont;
 }
 
-function lettering(elemCont, gsnElement, explanation, correction)
+function lettering(elemCont, gsnElement, explanation)
 {
      const textMargin = 5;
 
@@ -203,33 +227,36 @@ function lettering(elemCont, gsnElement, explanation, correction)
     var pixiObjects = explanation.map(symbolGenerator);
     var layout = calcLayout(gsnElement);
 
-
-    for (var i = 0; i < 3; i++)
+    for (var i = 0; i < explanation.length; i++)
     {
         const number = explanation[i][0];
-        const typeID = explanation[i][1];
-
+        //const typeID = explanation[i][1];
         const element = pixiObjects[i];
+        
         const basicText = new PIXI.Text(number.toString(), style);
         basicText.anchor.y = 1.0; 
-        basicText.x = layout[typeID][0] + correction - shiftX;
-        basicText.y = layout[typeID][1] - shiftY;
-        elemCont.addChild(basicText);
-       
+        basicText.x = layout[elemCont.name][i][0] - shiftX;
+        basicText.y = layout[elemCont.name][i][1] - shiftY;
+        
         element.x = basicText.x + basicText.width + textMargin;
         element.y = basicText.y;
+
+        if (number != -1) 
+        {
+            elemCont.addChild(basicText);
+        }
        
         elemCont.addChild(element);
-    }
+    
+        // else
+        // {
+        //     const midSymbol = pixiObjects[3];
 
-    // strategy gets an arrow symbol
-    if (explanation.length == 4)
-    {
-        const midSymbol = pixiObjects[3];
-
-        midSymbol.x = layout['arw'][0]-shiftX + correction + 6;
-        midSymbol.y = layout['arw'][1]-shiftY;
-        elemCont.addChild(midSymbol);
+        //     midSymbol.x = layout['arw'][0]-shiftX + correction + 6;
+        //     midSymbol.y = layout['arw'][1]-shiftY;
+        //     elemCont.addChild(midSymbol);
+        // }
+       
     }
 }
 
@@ -244,10 +271,17 @@ function calcLayout(element)
     const midX = w/2; 
     const midY = h/2;
 
-    var layout = {  rl: [margin, h - margin], 
-                    mt: [midX, h - margin],
-                    ph: [midX, midY],
-                    arw:[margin + midX/2, h - margin]};
+    var layout = {  goal: { 0: [margin, h - margin], 
+                            1: [midX, h - margin],
+                            2: [midX, midY]},
+                    strategy: { 0: [margin+5, h - margin], 
+                                1: [midX+5, h - margin],
+                                2: [midX+5, midY],
+                                3: [margin + midX/2 - 6, h - margin]},
+                    solution: {  0: [midX-midX/3, midY+midY/4]}
+                };
+                   
+
     return layout; 
 }
 // generates a pixi object according the type
