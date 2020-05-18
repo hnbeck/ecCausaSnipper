@@ -55,6 +55,13 @@ function updateSubtreeStrategy(id, strategy, mass)
     subtree[treeMassIX] = mass; 
 
     propagateMass(parentID, subtree[treeMassIX]);
+
+    // If strategy added all "free " solutions has to increase the level
+    for (var i = 0; i < solutionList.length; i++)
+    {
+        const fact = 1/ solutionList[i].k;
+        solutionList[i].k = 1/(fact - (6*layerheight/20));
+    }
     console.log("Subtree strategy now", id, subtree);
 } 
 
