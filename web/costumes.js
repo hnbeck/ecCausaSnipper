@@ -31,7 +31,7 @@ var flipSign = -1;
 //      const parendIX = 4; 
 function updateSubtreeChild(idParent, idChild, childmass) 
 {
-    console.log("Subtrees at the moment ", subtreeList);
+    console.log("CHILD: Subtrees at the moment ", subtreeList);
 
     const subtree = subtreeList[idParent];
     subtree[treeMassIX] += childmass; 
@@ -46,7 +46,7 @@ function updateSubtreeChild(idParent, idChild, childmass)
 
 function updateSubtreeStrategy(id, strategy, mass) 
 {
-    console.log("Subtrees at the moment ", subtreeList);
+    console.log("STRATEGY: Subtrees at the moment ", subtreeList);
 
     const subtree = subtreeList[id];
     const parentID = subtree[parentIX];
@@ -62,12 +62,12 @@ function updateSubtreeStrategy(id, strategy, mass)
         const fact = 1/ solutionList[i].k;
         solutionList[i].k = 1/(fact - (6*layerheight/20));
     }
-    console.log("Subtree strategy now", id, subtree);
+    console.log("STRATEGY Subtree strategy now", id, subtree);
 } 
 
 function updateSubtreeSolution(id, solution, mass) 
 {
-    console.log("Subtrees before solution at the moment ", subtreeList);
+    console.log("SOLUTION Subtrees at the moment ", subtreeList);
 
     const subtree = subtreeList[id];
     const parentID = subtree[parentIX];
@@ -77,7 +77,7 @@ function updateSubtreeSolution(id, solution, mass)
     subtree[treeMassIX] = mass; 
 
     propagateMass(parentID, subtree[treeMassIX]);
-    console.log("Subtree solution now", id, subtree);
+    console.log("SOLUTION Subtree solution now", id, subtree);
 } 
 
 function propagateMass(parentID, mass)
@@ -102,7 +102,7 @@ function addSubtree(level, subtree, id)
     }
     layerList[level].push(subtree);
 
-    console.log("Layers now ", layerList);
+    console.log("ADD: Layers now ", layerList);
 }
 
 function kFactor(level) {
@@ -284,7 +284,7 @@ function calcLayout(element)
                     strategy: { 0: [margin+5, h - margin], 
                                 1: [midX+5, h - margin],
                                 2: [midX+5, midY],
-                                3: [margin + midX/2 - 6, h - margin]},
+                                3: [midX/2 + margin, h - margin]},
                     solution: {  0: [midX-midX/3, midY+midY/4]}
                 };
                    
@@ -323,8 +323,8 @@ function symbolGenerator(argument) {
                 PIXI.loader.resources["/graphics/arrow.png"].texture
             );
             type.anchor.x = 0.5; 
-            type.scale.x = 0.2;
-            type.scale.y = 0.3;
+            type.scale.x = 0.15;
+            type.scale.y = 0.4;
     }   
     type.anchor.y = 1.0; 
 

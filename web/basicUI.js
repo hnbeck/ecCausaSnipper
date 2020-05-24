@@ -116,8 +116,8 @@ function executeQuery(answer)
     if (callBackQueue.length  == 0)
     {
         console.log("Pengine Ask");
-        callBackQueue.push('newTree(X).')
-        pengine.ask('genInitalObjects(Goal, GSNList)');
+        callBackQueue.push('startGame(X).')
+        pengine.ask('genInitalObjects(CurrentSubtree, GSNPalette)');
     }
     else
     {
@@ -433,20 +433,20 @@ function onDragEnd()
        
         if (this.name == 'strategy')
         {
-            const query = 'addGoalChild(strategy,' + id +', '+ draggedID +')';
-            callBackQueue.push(query+'.');
+            const query = 'addGoalChild(strategy,' + id +', '+ draggedID;
+            callBackQueue.push(query + ').');
             console.log("an Pengine", query);
-            pengine.ask(query);
+            pengine.ask(query + ', CurrentSubtree)');
             playWindow.vpRef.removeChild(this);
             touchedObject = [];  
         }
 
         if (this.name == 'solution')
         {
-            const query = 'addGoalChild(solution,' + id +', '+ draggedID +')';
-            callBackQueue.push(query+'.');
+            const query = 'addGoalChild(solution,' + id +', '+ draggedID ;
+            callBackQueue.push(query + ').');
             console.log("An Pengine ", query);
-            pengine.ask(query);
+            pengine.ask(query + ', CurrentSubtree)');
             const n = solutionList.indexOf(this);
             playWindow.vpRef.removeChild(this);
             solutionList.splice(n, 1);
