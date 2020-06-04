@@ -273,7 +273,7 @@ function calcLayout(element)
 
     const w = element.width; 
     const h = element.height; 
-    const margin = element.height / 4;
+    const margin = element.height / 5;
 
     const midX = w/2; 
     const midY = h/2;
@@ -282,7 +282,7 @@ function calcLayout(element)
                             1: [midX, h - margin],
                             2: [midX, midY]},
                     strategy: { 0: [margin+5, h - margin], 
-                                1: [midX+5, h - margin],
+                                1: [midX+7, h - margin],
                                 2: [midX+5, midY],
                                 3: [midX/2 + margin, h - margin]},
                     solution: {  0: [midX-midX/3, midY+midY/4]}

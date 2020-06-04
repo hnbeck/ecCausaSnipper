@@ -6,7 +6,8 @@
 					argument/3,
 					explanation/4,
 					subtree/3,
-					subtree/4]).
+					subtree/4,
+					doExplanation/2]).
 
 
 argument(Number, rl, [Number, rl]).
@@ -20,6 +21,12 @@ explanation(argument(N1, B1),
 	argument(N2, B2, B),
 	argument(N3, B3, C).
 
+doExplanation(List, Result) :-
+	phrase(explanation2(List), Result).
+
+explanation2([]) --> [].
+explanation2([N, T| Tail]) --> argu(N, T), explanation2(Tail).
+argu(N, T) --> {argument(N, T, L)}, [L].
 
 % physic body (masse, k-Factor, rotation speed)
 %body(Mass, KFac, V).
@@ -52,3 +59,5 @@ subtree(goal, subtree(A, _, _,   _), A).
 subtree(str, subtree(_, A, _,   _), A).
 subtree(childs, subtree(_, _, A, _), A).
 subtree(childs, Childs, subtree(G, S, _,  P), subtree(G, S, Childs,  P)).
+
+subtree(explanation, subtree(goal(_, E), _, _, _), E).

@@ -4,13 +4,14 @@ const childsIX = 2;
 const treeMassIX = 3; 
 const parentIX = 4; 
 const headIX = 0; 
-const viewportSize = 4000; 
-const ressourceSize = 250; 
+const viewportSize = 8000; 
+const canvasSize = 1400; 
+const ressourceSize = 300; 
 // context objects
 var stage; 
 var playWindow; 
 var ressourceWindow;
-var session = pl.create(10000);
+var session = pl.create(50000);
 var parsed = false; 
 var canvasWidth;
 var canvasHeight;
@@ -138,8 +139,8 @@ function pixiStart()
     stage = new PIXI.Container();
    
     renderer = PIXI.autoDetectRenderer( {view:document.getElementById("game-canvas"), 
-                                        width:1200, 
-                                        height:800}
+                                        width:canvasSize, 
+                                        height:1000}
             );
    
     PIXI.loader
@@ -186,7 +187,7 @@ function pixiAssets()
     playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
                                         viewportSize, viewportSize, canvasWidth-ressourceSize, canvasHeight); 
     ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
-                                            ressourceSize, 1000, ressourceSize, canvasHeight); 
+                                            ressourceSize, 2000, ressourceSize, canvasHeight); 
 
     layerHeight = 120; 
 
@@ -283,8 +284,8 @@ function pixiUpdate()
             const dx = (solutionList[n].x-solutionList[m].x);
             const gForce1  = solutionList[n].mass/(dx);
             const gForce2  = solutionList[m].mass/(dx);
-            const attract1 = solutionList[n].v /20; 
-            const attract2 = solutionList[m].v /20; 
+            const attract1 = solutionList[n].v /10; 
+            const attract2 = solutionList[m].v /10; 
 
             const resultForce = gForce2 + gForce1 - (attract2+attract1);
             //console.log("resultForce", resultForce);
@@ -346,7 +347,7 @@ function pixiUpdate()
                         sign *= sign; 
                     }
 
-                    const pedalForce =  goal.v*treeMass*160/(100*r)*sign2;
+                    const pedalForce =  goal.v*Math.log(treeMass*treeMass)*10*160/(100*r)*sign2;
                     const attraction =  goal.mass/100*sign;  
                     var dF = pedalForce - attraction;
                     

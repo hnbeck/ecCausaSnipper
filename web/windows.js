@@ -13,6 +13,8 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
     // indication of viewpoint area which may be much larger than camera view
     area.alpha = configList[0].alpha;
     area.name = "area";
+    area.scale.width = viewportSize;
+    area.scale.height = viewportSize;
 
     viewport.position = viewPos(configList[0].name, width, height, winWidth, winHeight);
     viewport.interactive = true;

@@ -23,7 +23,7 @@ init :-
 	holdTerm(callback(updateSubtreeSolution), solution),
 	holdTerm(callback(updateSubtreeStrategy), strategy),
 	holdTerm(callback(updateSubtreeChild), child),
-	write('Tau Prolog: done 02'). 
+	write('Tau Prolog: done 09'). 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -53,17 +53,20 @@ init :-
 startGame(Tree) :-
 	newPalette, 
 	state(currentsubtree, subtree(goal(ID, E), _, _, _)),
+	write('T: root'), write(E), write(ID),
 	newGoal(ID, E, 1, 0, root, _, NewSubtree),
 	holdTerm( NewSubtree, gsnTree).
 
 newPalette :-
 	state(gsnpalette, gsnPalette(List)),
+	write('T: palette'), write(List),
 	newPalette(List, 1).
 
 newPalette([], _) :-!.
 
 newPalette([H|T], Level) :-
 	H =.. [Type, ID, Exp],
+	write(ID),
 	genElement(Type, ID, Level, Element),
 	holdTerm(ID, gsnCounter),
 	realElement(Type, Element, []),
@@ -110,8 +113,6 @@ body(Level, Mass, V, body(Mass, KFac, V)) :-
 %solution(1, body(1000, KFac, V), Explanation).
 goal(body, goal(_, Body, _), Body).
 goal(body, Body, goal(ID, _, E), goal(ID, Body, E)).
-goal(exp, E, goal(ID, B, _), goal(ID, B, E)).
-goal(exp, goal(_, _, E), E).
 goal(id, goal(ID, _, _), ID).
 goal(mass, goal(_, body(M, _, _), _), M).
 
@@ -122,8 +123,6 @@ goal(level, Goal, Level, Goal2) :-
 
 solution(body, solution(_, Body, _), Body).
 solution(body, Body, solution(ID, _, E), solution(ID, Body, E)).
-solution(exp, E, solution(ID, B, _), solution(ID, B, E)).
-solution(exp, solution(_, _, E), E).
 solution(id, solution(ID, _, _), ID).
 solution(mass, solution(_, body(M, _, _), _), M).
 
@@ -142,8 +141,6 @@ element(mass, Element, M) :-
 
 strategy(body, strategy(_, Body, _), Body).
 strategy(body, Body, strategy(ID, _, E), strategy(ID, Body, E)).
-strategy(exp, E, strategy(ID, B, _), strategy(ID, B, E)).
-strategy(exp, strategy(_, _, E), E).
 strategy(id, strategy(ID, _, _), ID).
 strategy(mass, strategy(_, body(M, _, _), _), M).
 
@@ -182,10 +179,10 @@ genGoal(Level, V, Goal) :-
 
 genGoal(ID, Explanation, Level, V, Goal) :-
 	body(Level, 100, V, Body),
-	newGSN(goal, Body, Explanation, Goal).	
+	newGSN(goal, ID,  Body, Explanation, Goal).	
 
 genElement(solution, ID, _, Element) :-
-	genElement(solution, ID, 5, 100, 0.8, Element).
+	genElement(solution, ID, 3, 100, 0.6, Element).
 
 genElement(strategy, ID, Level, Element) :-
 	genElement(strategy, ID, Level, 0, 0, Element).
@@ -216,14 +213,14 @@ newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
 % according that what PEngine has created
 newStrategyGoals(Strategy, Level, Subtree2, Subtree3) :-
 	state(currentsubtree, subtree(G, S, Childs, _)),
-	write('T: Subtree'), write(Childs),
+	velocityStart(Childs, V0),
 	Level2 is Level + 1, 
-	childGoals(Childs, Level2, 1, Subtree2, Subtree3).
+	childGoals(Childs, Level2, V0, Subtree2, Subtree3).
 
-childGoals([], _, _, S, S).
+childGoals([], _, _, S, S) :- !.
 
 childGoals([C| Childs], Level, V, Subtree, Subtree3 ) :-
-	C = subtree(goal(ID, E), A, B,_),
+	C = subtree(goal(ID, E), A, B, _),
 	newGoal(ID, E, Level, V, Subtree, Subtree2, _),
 	nextVelocity(V, V2),
 	childGoals(Childs, Level, V2, Subtree2, Subtree3).
@@ -237,13 +234,22 @@ goalAsSubtree(Goal, Parent, Subtree) :-
 	subtree(id, Parent, ID),
 	Subtree = subtree(Goal, [], [], M, ID).
 
+velocityStart(Childs, Start) :-
+	length(Childs, N),
+	Mode is N mod 2, 
+	(N > 1 ->
+		Start = 1;
+		Start = 0).
+
+nextVelocity(0, 1) :- !.
+
 nextVelocity(V, V2) :-
 	V > 0, 
 	V2 is -V.
 
 nextVelocity(V, V2) :-
 	V < 0, 
-	V2 is V+1.
+	V2 is (-V)+2.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% >(F, S, S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -338,6 +344,7 @@ realSubtree(Level, Goal, Parent, Subtree) :-
 
 % embody the given element
 realElement(Type, Element, Subtree) :-
+	write('T: embody element'), write(Element),
 	embodyElement(Type, Element, JSObject),
 	syncSubtree(Type, Subtree, JSObject).
 
