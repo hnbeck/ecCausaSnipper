@@ -66,7 +66,7 @@ newPalette([], _) :-!.
 
 newPalette([H|T], Level) :-
 	H =.. [Type, ID, Exp],
-	write(ID),
+	% write(ID),
 	genElement(Type, ID, Level, Element),
 	holdTerm(ID, gsnCounter),
 	realElement(Type, Element, []),
@@ -159,7 +159,8 @@ subtree(mass, M, subtree(G, S, C, _, P), subtree(G, S, C, M, P)).
 subtree(embodyData, subtree(goal(A, _, _), _, _, M, _), A, M).
 
 subtreeAddMass(Mass, subtree(G, S, C, M, P), subtree(G, S, C, M2, P)) :-
-	M2 is M + Mass.
+	M2 is M + Mass,
+	write('T: Mass'), write(M), write(Mass).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Generators %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 newGSN(Type, Body, Explanation, Element) :-
@@ -203,7 +204,7 @@ newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
 
 % goal child is strategy and solution
 newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
-	write('T: GOal child'), write(Type), write(ID),
+	% write('T: Goal child'), write(Type), write(ID),
 	genElement(Type, ID,  Level, 100, 0, Element),
 	subtreePlusElement(Level, Type, Element, Subtree, Subtree2),
 	realElement(Type, Element, Subtree2).
@@ -223,6 +224,8 @@ childGoals([C| Childs], Level, V, Subtree, Subtree3 ) :-
 	C = subtree(goal(ID, E), A, B, _),
 	newGoal(ID, E, Level, V, Subtree, Subtree2, _),
 	nextVelocity(V, V2),
+	subtree(mass, Subtree2, M2),
+	write('T: Mass afte'), write(M2),
 	childGoals(Childs, Level, V2, Subtree2, Subtree3).
 
 goalAsSubtree(Goal, root, Subtree) :-
@@ -237,11 +240,11 @@ goalAsSubtree(Goal, Parent, Subtree) :-
 velocityStart(Childs, Start) :-
 	length(Childs, N),
 	Mode is N mod 2, 
-	(N > 1 ->
-		Start = 1;
+	(Mode == 0 ->
+		Start = 128;
 		Start = 0).
 
-nextVelocity(0, 1) :- !.
+nextVelocity(0, 128) :- !.
 
 nextVelocity(V, V2) :-
 	V > 0, 
@@ -249,7 +252,7 @@ nextVelocity(V, V2) :-
 
 nextVelocity(V, V2) :-
 	V < 0, 
-	V2 is (-V)+2.
+	V2 is (-V) + 128.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% >(F, S, S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -261,8 +264,8 @@ addGoalChild(Type,TreeID, ID) :-
 	state(gsnTree, Tree),
 	state(currentsubtree,A),
 	write('T: current ST'), write(A),
-	write('T: current Tree'), write(Tree),
 	updateTree(TreeID, ID, Type, 2, Tree, Tree2),
+	write('T: new Tree'), write(Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
@@ -280,10 +283,12 @@ updateTree(TreeID, ID, Type, Level, Tree, Tree3) :-
 updateChilds(TreeID, ID, Type,  Level,  [], [],  _) :- false.
 
 % go over all child subtrees
-updateChilds(TreeID, ID, Type, Level, [H | T],  [H2 | T],  MassChilds) :-
+updateChilds(TreeID, ID, Type, Level, [H | T],  [H2 | T],  NewMass) :-
 	Level2 is Level + 2, 
+	subtree(mass, H, OldMass),
 	updateTree(TreeID, ID, Type, Level2, H, H2),! ,
-	subtree(mass, H2, MassChilds).
+	subtree(mass, H2, MassChilds),
+	NewMass is MassChilds - OldMass.
 
 updateChilds(TreeID, ID, Type, Level, [H | T],  [H | T2], NewMass) :-
 	updateChilds(TreeID, ID, Type, Level, T, T2, NewMass).
@@ -296,13 +301,13 @@ updateChilds(TreeID, ID, Type, Level, [H | T],  [H | T2], NewMass) :-
 % a goal gets a strategy, means the related subtree gets the strategy
 % per definition there cannot be childs
 
-subtreePlusElement(Level, strategy, Element, Subtree, Subtree3) :-
-	subtreePlusElement(Level, solution, Element, Subtree, Subtree2),
+subtreePlusElement(Level, strategy, Element, subtree(Goal, [], [], M, Parent), Subtree3) :-
+	Subtree2 = subtree(Goal, Element, [], M, Parent),
 	newStrategyGoals(Element, Level, Subtree2, Subtree3).
 
 subtreePlusElement(Level, solution, Element, subtree(Goal, [], [], M, Parent), Subtree2) :-
 	element(mass, Element, M2),
-	M3 is M + M2, 
+	M3 is M + M2/2, 
 	Subtree2 = subtree(Goal, Element, [], M3, Parent).
 
 subtreePlusSubtree(GoalAsSubtree, root, root) :-!.

@@ -7,6 +7,7 @@
 // layer is a list of subtrees, each subtree has a body
 // layerlist = [subtree1, subtree2....], with index = layer no
 var layerList = []; 
+var layerMassList = [];
 var solutionList = []; 
 // subtreeList is a list of all subtrees, 
 // describing the embodyment of a subtree
@@ -39,14 +40,14 @@ function updateSubtreeChild(idParent, idChild, childmass)
 
     // lagekorrektur
     const childTree = subtreeList[idChild];
-    childTree[headIX].x = subtree[headIX].x  + childTree[headIX].v*50; 
+    //childTree[headIX].x = subtree[headIX].x  + childTree[headIX].v*50; 
 
-    console.log("Subtree goal now", subtree);
+    console.log("CHILD Subtree goal now", subtree);
 } 
 
 function updateSubtreeStrategy(id, strategy, mass) 
 {
-    console.log("STRATEGY: Subtrees at the moment ", subtreeList);
+    console.log("STRATEGY: Subtrees at the moment + id + mass ", subtreeList, id, mass);
 
     const subtree = subtreeList[id];
     const parentID = subtree[parentIX];
@@ -63,6 +64,7 @@ function updateSubtreeStrategy(id, strategy, mass)
         solutionList[i].k = 1/(fact - (6*layerheight/20));
     }
     console.log("STRATEGY Subtree strategy now", id, subtree);
+    console.log("STRATEGY: SubtreeList at the moment ", subtreeList);
 } 
 
 function updateSubtreeSolution(id, solution, mass) 
@@ -84,9 +86,10 @@ function propagateMass(parentID, mass)
 {   
     if (parentID != "root")
     {
-        console.log("Parent is ", parentID);
+        console.log("Propagate: Parent is ", parentID);
         const subtree = subtreeList[parentID];
         subtree[treeMassIX] += mass; 
+        console.log("Propagate: mass ", mass);
         const id = subtree[parentIX];
         propagateMass(id, subtree[treeMassIX]);
     }
@@ -99,10 +102,13 @@ function addSubtree(level, subtree, id)
     if (!Array.isArray(layerList[level]))
     {
         layerList[level] = []; 
+        layerMassList[level] = new Array(viewportSize/50);
+        layerMassList[level].fill(0);
     }
     layerList[level].push(subtree);
 
     console.log("ADD: Layers now ", layerList);
+    console.log("ADD: Layer masses now ", level, layerMassList);
 }
 
 function kFactor(level) {
@@ -119,8 +125,7 @@ function kFactor(level) {
 
 function gsnElemGenerator(elemType, id, body, explanation) 
 {
-//function gsnElemGenerator(ElemType, name, TypeList) {
-    console.log("Elem Generator ", elemType, id, body, explanation);
+    // console.log("Elem Generator ", elemType, id, body, explanation);
     // x,Y muss noch auf default gesetzt werden
    
     const elemCont = new PIXI.Container();
@@ -185,10 +190,12 @@ function gsnElemGenerator(elemType, id, body, explanation)
 
         case ('goal') :
             const dx = elemCont.v; 
+
             elemCont.x = viewportSize/2 + dx; 
             elemCont.y = canvasHeight/2;
             ressourceID = "/graphics/goal.png"; 
             midSymbol = null; 
+            elemCont.receptor = true; 
             
         break; 
     }

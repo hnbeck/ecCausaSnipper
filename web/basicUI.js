@@ -208,9 +208,6 @@ function pixiAssets()
     stage.buttonMode = false;   
 
     init_Prolog(); 
-
-    // waitforParsed(500, 1);
-    console.log("und weiter");
     
     session.query("showTree.");
     session.answer();
@@ -290,7 +287,7 @@ function pixiUpdate()
             const resultForce = gForce2 + gForce1 - (attract2+attract1);
             //console.log("resultForce", resultForce);
 
-            if ((Math.abs(resultForce) > 1) 
+            if ((Math.abs(resultForce) > 2) 
                 && (solutionList[n].dragging == false)
                 && (solutionList[m].dragging == false))
             {
@@ -318,22 +315,33 @@ function pixiUpdate()
             const childs = subtree[childsIX];
             const headStrategy = subtree[strategyIX]; 
     
+            const mode = childs.length % 2; 
+            const mass = [0,0];
+
             for (var n = 0; n < childs.length; n++)
             {
                 const subsubtreeID = childs[n];
                 const subsubtree = subtreeList[subsubtreeID];
-                const treeMass = subsubtree[treeMassIX]*0.5;
+                const treeMass = subsubtree[treeMassIX];
                 const goal = subsubtree[headIX]; // das ist das Goal
                 const strategy = subsubtree[strategyIX];
+
+                const index = n % 2; 
+               
+                // childs sind abgespeichert als (bezogen auf v bzw. Orbit: 
+                // [0, 1, -1, 2, -2, ...] wenn ungerade zahl
+                // [1, -1, 2, -2, ...] wenn gerade zahl
 
                 // erste Korretur: der in der Mittelachse muss darauf bleiben
                 // die Mittelachse kann sich bewegen durch layout des Layers darüber
                 if (goal.v == 0) 
                 {
                     goal.x = headGoal.x; 
+                    
                 }
                 else
                 {
+                    mass[index] += treeMass; 
                     const r = (goal.x - headGoal.x);
                     var sign = Math.sign(r); 
                     const sign2 = Math.sign(goal.v);
@@ -343,18 +351,19 @@ function pixiUpdate()
                     if (sign != sign2)
                     {
                         // spieglen an der Achse
-                        goal.x += sign*2*r; 
-                        sign *= sign; 
+                       goal.x += sign*2*r; 
+                       sign *= sign; 
                     }
 
-                    const pedalForce =  goal.v*Math.log(treeMass*treeMass)*10*160/(100*r)*sign2;
-                    const attraction =  goal.mass/100*sign;  
-                    var dF = pedalForce - attraction;
+                    const alpha = 128;
+                    const gamma = massEffectFactor(headGoal.mass, treeMass, goal.v); 
+                    const pedalForce =  goal.v*treeMass*alpha*gamma/r*sign2;
+                    const visibleMass = massReduceFactor(headGoal.mass, treeMass, mass[index], goal.v)*headGoal.mass; 
+                    const attraction =headGoal.mass*visibleMass*sign;  
+                    goal.x += displacementForce(pedalForce, attraction, 10);
                     
-                    if (Math.abs(dF) < 0.01)
-                        dF = 0.0; 
+                    //if (n > 2) console.log("mass", goal.v, mass[index]);
 
-                    goal.x += (dF)*5;
                     // if there is a strategy move it too
                     if  (!Array.isArray(strategy))
                     {
@@ -365,7 +374,7 @@ function pixiUpdate()
                         //console.log("r", center, element.x, r, pedalForce - attraction);
                         //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
                 }
-
+                // spaceEffect(goal.x, treeMass, j);
                 adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
             }
             if (!Array.isArray(headStrategy)) 
@@ -380,6 +389,70 @@ function pixiUpdate()
     requestAnimationFrame(pixiUpdate);
 }
 
+
+function displacementForce(F1, F2, Animationsteps) {
+
+    // the result is displacement in pixel
+    var dF = (F1 - F2)/78;
+   
+    //dF += layerMassList[level][x2];    
+
+    if (Math.abs(dF) < 1/Animationsteps) 
+        dF = 0.0;
+    else 
+        dF = dF/Animationsteps;
+
+    if (dF > 300) dF = 300; 
+    if (dF < -300) dF = -300; 
+    
+    return dF; 
+}
+
+// reduces the effect of the mass of a subtree. Without the subtree would be placed too far from mid
+function massEffectFactor(M, m, v) 
+{
+    const term1 = Math.abs(v)*(m-100);
+    const term2 = M*M; 
+
+    const k = 1 - term1/term2/16;
+
+    return k;
+}
+
+
+// mode = 0 even number of childs, 1 = odd number of childs
+function massReduceFactor( M,  myMass, msum, v) 
+{
+    var n2;
+    // calculate the indes in childlist of the precceding mass relative to rotation centrum
+     // childs sind abgespeichert als (bezogen auf v bzw. Orbit: 
+                // [0, 1, -1, 2, -2, ...] wenn ungerade zahl
+                // [1, -1, 2, -2, ...] wenn gerade zahl
+
+    // map is [n, mode, n displacement]
+    var nMap = [ [0, 0],  // n = 0 mode 0, 1
+                 [0, -1] ]    // n = 1, mode 0,1;
+                
+    // if (n < 2)  
+    //     n2 = nMap[n][mode];
+    // else
+    //     n2 = -2; 
+
+    // const subsubtreeID = childs[n+n2];
+    // const subsubtree = subtreeList[subsubtreeID];
+    // const treeMass = subsubtree[treeMassIX];
+
+    // const k = 1-16*(treeMass-100)/M/M; 
+ 
+    // ~ 1/v ~1/myMass 
+    const m_ref = (Math.abs(v)/128-1)*100;
+    const mbefore = msum-myMass;
+    var k = 1; 
+
+    if (m_ref > 0) 
+        k = mbefore/m_ref*(100/myMass); 
+    return 1/k; 
+}
 
 /////////////////////////////////// Event Handling ///////////////////////////////////////////////
 // collision with a goal 
@@ -426,7 +499,7 @@ function onDragEnd()
     prio = false; 
     console.log("drag end", this.name);
 
-    if (touchedObject.length > 0 ) 
+    if ((touchedObject.length > 0 ) && (touchedObject[0].receptor))
     {
         const id = touchedObject[0].id;
         const draggedID = this.id; 
@@ -439,7 +512,9 @@ function onDragEnd()
             console.log("an Pengine", query);
             pengine.ask(query + ', CurrentSubtree)');
             playWindow.vpRef.removeChild(this);
+            touchedObject[0].receptor = false; 
             touchedObject = [];  
+
         }
 
         if (this.name == 'solution')
@@ -451,6 +526,7 @@ function onDragEnd()
             const n = solutionList.indexOf(this);
             playWindow.vpRef.removeChild(this);
             solutionList.splice(n, 1);
+            touchedObject[0].receptor = false; 
             touchedObject = [];  
         }
        
