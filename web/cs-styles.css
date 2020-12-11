@@ -30,7 +30,7 @@ canvas {
 	margin-right: auto;
 	margin-top: 20px;
 	flex-flow: center; 
-	display: block;
+	display: none;
 }
 
 #playarea {

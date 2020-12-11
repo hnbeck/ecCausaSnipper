@@ -23,7 +23,8 @@ init :-
 	holdTerm(callback(updateSubtreeSolution), solution),
 	holdTerm(callback(updateSubtreeStrategy), strategy),
 	holdTerm(callback(updateSubtreeChild), child),
-	write('Tau Prolog: done 09'). 
+	holdTerm(callback(updateSubtree), update),
+	write('Tau Prolog: done 17'). 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -53,13 +54,13 @@ init :-
 startGame(Tree) :-
 	newPalette, 
 	state(currentsubtree, subtree(goal(ID, E), _, _, _)),
-	write('T: root'), write(E), write(ID),
+	% write('T: root'), write(E), write(ID),
 	newGoal(ID, E, 1, 0, root, _, NewSubtree),
 	holdTerm( NewSubtree, gsnTree).
 
 newPalette :-
 	state(gsnpalette, gsnPalette(List)),
-	write('T: palette'), write(List),
+	%write('T: palette'), write(List),
 	newPalette(List, 1).
 
 newPalette([], _) :-!.
@@ -91,6 +92,33 @@ expByID([H|T], ID, Exp) :-
 showTree :-
 	state(gsnTree, Tree), 
 	writeHTML('Tauhtml', Tree, _).
+
+% M is a mass
+newInterval(M, IV) :-
+	X2 is M / 100,
+	X1 is -X2,
+	IV = [X1, X2].
+
+% [0,0] is here the application specific notation of empty cutset
+cutSet([], [_, _], [0, 0]).
+cutSet([_,_], [], [0, 0]).
+cutSet([], [], [0, 0]).
+
+cutSet([A, B], [C, D], [X,Y]) :-
+	write('vor der sortieung'), 
+	msort([A, B, C, D], [_, X, Y, _]),
+	write('nach der sortierung'),
+	inInterval(X, [A,B]), !.
+
+cutSet([_, _], [_, _], [0,0]) :-
+	write('BUMMER').
+
+inInterval(X, [A, B]) :-
+	X >= A, 
+	X < B.
+
+midInterval([A, B], C) :-
+	C is (B-A)/2 + A.
 
 % the element of a goal and a stragegy are the explanation types
 % rl = rule = normative setting, mt= measurement, ph = phenomenon.
@@ -149,19 +177,21 @@ strategy(level, Strategy, Level, Strategy2) :-
 	body(Level, Mass, V, Body),
 	strategy(body, Body, Strategy, Strategy2).
 
-subtree(id, subtree(goal(A, _, _), _, _, _, _), A).
-subtree(goal, subtree(A, _, _,  _, _), A).
-subtree(str, subtree(_, A, _,  _, _), A).
-subtree(childs, subtree(_, _, A, _, _), A).
-subtree(childs, Childs, subtree(G, S, _, M, P), subtree(G, S, Childs, M, P)).
-subtree(mass, subtree(_, _, _ , A, _), A).
-subtree(mass, M, subtree(G, S, C, _, P), subtree(G, S, C, M, P)).
-subtree(embodyData, subtree(goal(A, _, _), _, _, M, _), A, M).
+subtree(id, subtree(goal(A, _, _), _, _, _, _, _), A).
+subtree(goal, subtree(A, _, _,  _, _, _), A).
+subtree(str, subtree(_, A, _,  _, _, _), A).
+subtree(childs, subtree(_, _, A, _, _, _), A).
+subtree(childs, Childs, subtree(G, S, _, M, P, I), subtree(G, S, Childs, M, P, I)).
+subtree(mass, subtree(_, _, _ , A, _, _), A).
+subtree(mass, M, subtree(G, S, C, _, P, I), subtree(G, S, C, M, P, I)).
+subtree(embodyData, subtree(goal(A, _, _), _, _, M, _, _), A, M).
+subtree(iv, subtree(goal(_, _, _), _, _, _, _, I), I).
+subtree(iv, IV , subtree(G, S, C, M, P, _), subtree(G, S, C, M, P, IV)).
 
-subtreeAddMass(Mass, subtree(G, S, C, M, P), subtree(G, S, C, M2, P)) :-
-	M2 is M + Mass,
-	write('T: Mass'), write(M), write(Mass).
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Generators %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+subtreeAddMass(Mass, subtree(G, S, C, M, P,I), subtree(G, S, C, M2, P, I)) :-
+	M2 is M + Mass.
+	% write('T: Mass'), write(M), write(Mass).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% !(S, S*)  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 newGSN(Type, Body, Explanation, Element) :-
 	state(gsnCounter, No),
@@ -200,7 +230,24 @@ newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
 	genGoal(ID, E, Level, V,  Goal),
 	goalAsSubtree(Goal, Parent, NewSubtree),
 	subtreePlusSubtree(NewSubtree, Parent, Parent2),
-	realSubtree(Level, Goal, Parent2, NewSubtree).
+	realSubtree(Level, Goal, Parent2, NewSubtree),
+	updateAllChilds(Parent2).
+
+updateAllChilds(root) :- 
+	write('TAU no UPDATE root'),!.
+
+updateAllChilds(Subtree) :-
+	subtree(childs, Subtree, Childs),
+	updateAllChilds2(Childs).
+
+updateAllChilds2([]) :- 
+	write('TAU no UPDATE'),!.
+
+updateAllChilds2( [C| Tail] ) :-
+	write('TAU UPDATE'),
+	syncSubtree(update, _, C),
+	updateAllChilds2(Tail).
+	
 
 % goal child is strategy and solution
 newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
@@ -225,17 +272,19 @@ childGoals([C| Childs], Level, V, Subtree, Subtree3 ) :-
 	newGoal(ID, E, Level, V, Subtree, Subtree2, _),
 	nextVelocity(V, V2),
 	subtree(mass, Subtree2, M2),
-	write('T: Mass afte'), write(M2),
+	%write('T: Mass afte'), write(M2),
 	childGoals(Childs, Level, V2, Subtree2, Subtree3).
 
 goalAsSubtree(Goal, root, Subtree) :-
 	goal(mass, Goal, M),
-	Subtree = subtree(Goal, [], [], M, root),!. 
+	newInterval(M, IV),
+	Subtree = subtree(Goal, [], [], M, root, IV),!. 
 
 goalAsSubtree(Goal, Parent, Subtree) :-
 	goal(mass, Goal, M),
+	newInterval(M, IV),
 	subtree(id, Parent, ID),
-	Subtree = subtree(Goal, [], [], M, ID).
+	Subtree = subtree(Goal, [], [], M, ID, IV).
 
 velocityStart(Childs, Start) :-
 	length(Childs, N),
@@ -262,10 +311,10 @@ nextVelocity(V, V2) :-
 % StID is subtree ID = ID of head goal of this subtree
 addGoalChild(Type,TreeID, ID) :-
 	state(gsnTree, Tree),
-	state(currentsubtree,A),
-	write('T: current ST'), write(A),
+	%state(currentsubtree,A),
+	%write('T: current ST'), write(A),
 	updateTree(TreeID, ID, Type, 2, Tree, Tree2),
-	write('T: new Tree'), write(Tree2),
+	% write('T: new Tree'), write(Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
@@ -273,11 +322,13 @@ updateTree(TreeID, ID, Type, Level, Tree, Tree2) :-
 	subtree(id, Tree, TreeID),
 	newGoalChild(Type, ID, Level, Tree, Tree2),!.
 
-updateTree(TreeID, ID, Type, Level, Tree, Tree3) :-
+updateTree(TreeID, ID, Type, Level, Tree, Tree4) :-
 	subtree(childs, Tree, Childs),
 	updateChilds(TreeID, ID, Type, Level, Childs, Childs2, NewMass),
 	subtree(childs, Childs2, Tree, Tree2),
-	subtreeAddMass(NewMass, Tree2, Tree3).
+	subtreeAddMass(NewMass, Tree2, Tree3),
+	newInterval(NewMass, IV),
+	subtree(iv, IV, Tree3, Tree4).
 
 % update the childs of a tree
 updateChilds(TreeID, ID, Type,  Level,  [], [],  _) :- false.
@@ -294,31 +345,102 @@ updateChilds(TreeID, ID, Type, Level, [H | T],  [H | T2], NewMass) :-
 	updateChilds(TreeID, ID, Type, Level, T, T2, NewMass).
 
 
+shiftInterval(_, [], []).
 
+shiftInterval(X, [A, B], [A2, B2]) :-
+	A2 is A + X, 
+	B2 is B + X.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%% !(S,S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % a goal gets a strategy, means the related subtree gets the strategy
 % per definition there cannot be childs
 
-subtreePlusElement(Level, strategy, Element, subtree(Goal, [], [], M, Parent), Subtree3) :-
-	Subtree2 = subtree(Goal, Element, [], M, Parent),
+subtreePlusElement(Level, strategy, Element, subtree(Goal, [], [], M, Parent, IV), Subtree3) :-
+	Subtree2 = subtree(Goal, Element, [], M, Parent, IV),
 	newStrategyGoals(Element, Level, Subtree2, Subtree3).
 
-subtreePlusElement(Level, solution, Element, subtree(Goal, [], [], M, Parent), Subtree2) :-
+subtreePlusElement(Level, solution, Element, subtree(Goal, [], [], M, Parent, IV), Subtree2) :-
 	element(mass, Element, M2),
 	M3 is M + M2/2, 
-	Subtree2 = subtree(Goal, Element, [], M3, Parent).
+	Subtree2 = subtree(Goal, Element, [], M3, Parent, IV).
 
 subtreePlusSubtree(GoalAsSubtree, root, root) :-!.
 
 % new goal as subtree will be added to a parent
-subtreePlusSubtree(GoalAsSubtree, Parent, Parent3) :-
+%%%% here add the interval
+subtreePlusSubtree(GoalAsSubtree, Parent, Parent4) :-
 	subtree(childs, Parent, Childs), 
+	write('TAU: OLD CHild'), write(Childs),
+	write('TAU: GoalsAsSubtree'), write(GoalAsSubtree),
 	subtree(mass, GoalAsSubtree, M),
+	relaxInterval(GoalAsSubtree, Childs, [], Child2),
+	write('TAU: SUBTREEPLUSSUBTREE'), write(Child2),
 	subtreeAddMass(M, Parent, Parent2),
-	append(Childs, [GoalAsSubtree], Childs2), 
-	subtree(childs, Childs2, Parent2, Parent3).
+	subtree(childs, Child2, Parent2, Parent3),
+	updateInterval(Parent3, Parent4).
+	
+updateInterval(Subtree, Subtree2) :-
+	subtree(childs, Subtree, Childs),
+	nth0(0, Childs, C1),
+	last(Childs, C2),
+	subtree(iv, C1, [A, _]),
+	subtree(iv, C2, [_, B]),	
+	subtree(iv, [-10, 10], Subtree, Subtree2).
+
+%%%%%% Intervalhandling 
+
+relaxInterval(GoalAsSubtree, [], [],[GoalAsSubtree]) :- !.
+
+relaxInterval(GoalAsSubtree, [], L, L2) :- 
+	append(L, [GoalAsSubtree], L2 ),!.
+
+relaxInterval(GoalAsSubtree, [C | Tail], L, Childs2) :-
+	subtree(iv, GoalAsSubtree, IV), 
+	midInterval(IV, X1),
+	subtree(iv, C, CIV),
+	midInterval(CIV, X2),
+	X2 < X1, 
+	append(L, [C], L2 ),
+	relaxInterval(GoalAsSubtree, Tail, L2, Childs2), !.
+
+relaxInterval(GoalAsSubtree, Childs, L,  Childs2) :-
+	shiftAllIntervals(left, L, GoalAsSubtree, L2),
+	shiftAllIntervals(right, Childs, GoalAsSubtree, R2),
+	append(L2, [GoalAsSubtree], L3),
+	append(L3, R2, Childs2).
+
+shiftAllIntervals(_, [], _ , []) :- !.
+
+shiftAllIntervals(_, A, 0 , A) :- !.
+
+shiftAllIntervals(Dir, Childs, GoalAsSubtree, Childs2) :-
+	(Dir == left -> last(Childs, C);
+					nth0(0, Childs, C)),
+	subtree(iv, C, IV1),
+	subtree(iv, GoalAsSubtree, IV), 
+	cutSet(IV1, IV, [A,B]),
+	Delta is B-A, 
+	moveAllChilds(Dir, Delta, Childs, Childs2).
+	
+
+moveAllChilds(_, _, [], []) :- !.
+
+moveAllChilds(Dir, Delta, [C | Tail], [C2 | Tail2]) :-
+	subtree(iv, C, IV),
+	moveIntervals(Dir, IV, Delta, IV2),
+	subtree(iv, IV2, C, C2),
+	moveAllChilds(Dir, Delta, Tail, Tail2).
+
+
+moveIntervals(_, [], _, []).
+
+moveIntervals(left, IV , X, IV2 ) :-
+	X2 is -X,
+	shiftInterval(X2, IV, IV2).
+
+moveIntervals(right, IV, X, IV2 ) :-
+	shiftInterval(X, IV, IV2).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -349,7 +471,7 @@ realSubtree(Level, Goal, Parent, Subtree) :-
 
 % embody the given element
 realElement(Type, Element, Subtree) :-
-	write('T: embody element'), write(Element),
+	% write('T: embody element'), write(Element),
 	embodyElement(Type, Element, JSObject),
 	syncSubtree(Type, Subtree, JSObject).
 
@@ -357,10 +479,11 @@ realElement(Type, Element, Subtree) :-
 % embody new subtree  on JS level
 % means to add a new subtree including its goal to the list on JS level
 % this list is relevant for graphics
-embodySubtree(subtree(Goal, [], [], _, Parent), JSObject,  Level) :-
+embodySubtree(subtree(Goal, [], [], _, Parent, IV), JSObject,  Level) :-
 	goal(id, Goal, ID),
 	goal(mass, Goal, Mass),
-	ST = [JSObject, [], [], Mass, Parent],
+	ST = [JSObject, [], [], Mass, Parent, IV],
+	write('TAU:'), write(IV),
 	prop('addSubtree', JSFkt2),
 	apply(JSFkt2, [Level, ST, ID], _).
 
@@ -374,6 +497,14 @@ embodyElement(Type, Element, JSObject) :-
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% synchro with JS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+syncSubtree(update, _, Subtree) :-
+	write('TAU SYNC'), write(Subtree),
+	subtree(id, Subtree, ID),
+	subtree(iv, Subtree, IV),
+	state(update, callback(FktID)),
+	prop(FktID, JSFkt),
+	apply(JSFkt, [IV, ID], _),!.
 
 % communicate JS the new child of a subtree
 % +Parent : the subtree which gets the new child
@@ -429,7 +560,7 @@ readHTML(ID, Term) :-
 % the answer will be included in Tau database as
 % state(p1, AnswerTerm)
 holdTerm(TauTerm, H) :-
-	% write('Taustate '), write(state(H, TauTerm)), % for debug
+	%write('Taustate '), write(state(H, TauTerm)), % for debug
 	retractall(state(H, _)),
 	asserta(state(H, TauTerm)).
 

@@ -91,14 +91,14 @@ startGame(N, 'start') :-
 	
 genInitalObjects(Subtree, gsnPalette(List3)) :-
 	newRoot(root, Subtree),
-	pengine_debug('SWI goal is ~w ~n',[Subtree]),
+	%pengine_debug('SWI goal is ~w ~n',[Subtree]),
 	store(gsnTree(Subtree)),
 	access(rootExp([[N1, T1], [N2, T2], [N3, T3]])),
 	Sum = N1 + N2 + N3,
 	genGoalChilds(strategy, Sum, List),
 	genGoalChilds(solution, Sum, List2),
 	append(List, List2, List3),
-	pengine_debug('List~w ~n',[List3]),
+	%pengine_debug('List~w ~n',[List3]),
 	store(gsnPalette(List3)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% structure coder %%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -175,23 +175,23 @@ genExplanation(solution, [[1, E]]) :-
 ruleheadApply([H | _], List) --> rulehead(H, List).
 rulebodyApply([ _ | Body], List) --> rulebody(Body, List).
 
-rulehead([N, T], []) --> [].
-rulehead([N, T], [H | Tail]) -->  {	H = [N2, T], 
+rulehead([_, _], []) --> [].
+rulehead([N, T], [H | _]) -->  {	H = [N2, T], 
 									(applyCondition(N, N2, N3) ->
 										E = [N3, T]; 
 										E = [] )}, 
 									[E],!.
 
-rulehead([N, T], [H | Tail]) -->  rulehead([N, T], Tail). 
+rulehead([N, T], [_ | Tail]) -->  rulehead([N, T], Tail). 
 
-rulebody( [], List) -->[].
+rulebody( [], _) -->[].
 rulebody([H | T], List) --> body(H, List), rulebody(T, List).
 
-body(A,[]) --> [].
-body(A, [A2 | T]) --> { matchArgument(A, A2, New) },
+body(_,[]) --> [].
+body(A, [A2 | _]) --> { matchArgument(A, A2, New) },
 							[New], !.
 
-body(A, [A2 | T]) --> body(A, T).
+body(A, [_ | T]) --> body(A, T).
 
 applyCondition(N, N2, N3) :-
 	N3 is N2 - N, 
@@ -215,22 +215,22 @@ rulesort([], _ ) --> [].
 rulesort([A | Tail], List) --> ruleElem(A, List), 
 									rulesort(Tail, List).
 
-ruleElem(A, [] )  --> [].
-ruleElem([N1, T], [H2 | Tail] ) --> {H2 = [N2, T]},
+ruleElem(_, [] )  --> [].
+ruleElem([_, T], [H2 | _] ) --> {H2 = [N2, T]},
 								 	[[N2, T]],!. 
-ruleElem([N1, T], [H2 | Tail] ) --> ruleElem([N1, T], Tail),!.
+ruleElem([N1, T], [_ | Tail] ) --> ruleElem([N1, T], Tail),!.
 
 % sort explanation in the sequence of the rule types
 % then compar
 expandExpl(Explanation, Rule,  ListofExpl) :-
 	phrase(rulesort(Rule, Explanation), Exp2),
 	%pengine_debug('SWI: sortet ~w rule ~w ~n',[Exp2, Rule]),
-	expand2(Rule, Exp2, [], ListofExpl),
-	pengine_debug('SWI: Expl List ~w ~n',[ListofExpl]).
+	expand2(Rule, Exp2, [], ListofExpl).
+	%pengine_debug('SWI: Expl List ~w ~n',[ListofExpl]).
 	
 % case 0: subtraction not possible because to low count of 
 % required argument type
-expand2(Rule, [[0, T], A2, A3], L1, ListofExpl ) :-
+expand2(_, [[0, T], A2, A3], L1, ListofExpl ) :-
 	countNonZero([[0, T], A2, A3], 0, Z, [], SortArguments),
 	(Z > 1 -> append(L1, [[[0, T], A2, A3]], ListofExpl);
 			splitNonZero(SortArguments, ListofExpl)
@@ -239,20 +239,20 @@ expand2(Rule, [[0, T], A2, A3], L1, ListofExpl ) :-
 % splitting by substraction can be done
 expand2(Rule, Explanation, L1, ListofExpl ) :-
 	subtract(Rule, Explanation, Result),
-	pengine_debug('SWI: subtract ~w rule ~w ~n',[Result, Rule]),
+	% pengine_debug('SWI: subtract ~w rule ~w ~n',[Result, Rule]),
 	expand3(Rule, Explanation, Result, L1, ListofExpl).
 
 %%% Cases of outcomes and resulting rule of splitting
 % case b)
-expand3(_, Expl,  [[0, T], [0, T2], [0, T3]], L1,  L2) :- 
+expand3(_, Expl,  [[0, _], [0, _], [0, _]], L1,  L2) :- 
 	append(L1, [Expl], L2), !.
 % fall c)
-expand3(_, Expl, [[N, T], A2, A3], L1, L2) :-
+expand3(_, Expl, [[N, _], _, _], L1, L2) :-
 	N < 0 , 
 	append(L1, [Expl], L2), !.
 
-expand3(_, Expl, Result, L1, L3) :-
-	countNonZero(Result, 0, Z, [], [[N, T1], [0, T2], [0, T3]]),
+expand3(_, _, Result, L1, L3) :-
+	countNonZero(Result, 0, _, [], [[N, T1], [0, T2], [0, T3]]),
 	%pengine_debug('SWI: count ~w rule ~w ~n',[Z, Result]),
 	splitNonZero( [[N, T1], [0, T2], [0, T3]], L),
 	append(L1, L, L3), !.
@@ -262,19 +262,19 @@ expand3(Rule, _, [[0, T], A2, A3], L1, L3) :-
 	append(L1, [Rule], L2), 
 	append(L2, [[[0, T], A2, A3]], L3), !.
 
-expand3([R1, [_, TR], R3], [A1, A2, A3], [AA1, [N2, T], AA3], L1, L3) :-
+expand3([R1, [_, TR], R3], [_, A2, _], [AA1, [N2, _], AA3], L1, L3) :-
 	N2 < 0 ,
 	append(L1, [[R1, [0, TR], R3]], L2),
 	append(L2, [[AA1, A2, AA3]], L3), !.
 
-expand3([R1, R2, [_, TR]], [A1, A2, A3], [AA1, AA2, [N3, T]], L1, L3) :-
+expand3([R1, R2, [_, TR]], [_, _, A3], [AA1, AA2, [N3, _]], L1, L3) :-
 	N3 < 0 ,
 	append(L1, [[R1, R2, [0, TR]]], L2),
 	append(L2, [[AA1, AA2, A3]], L3), !.
 
 
 % allgemeiner Fall,
-expand3(Rule, Expl, Result, L1, L4) :-
+expand3(Rule, _, Result, L1, L4) :-
 	append(L1,  [Rule], L2), 
 	expand2(Rule, Result, L2, L4).
 
@@ -358,8 +358,8 @@ goalAsSubtree(Goal, Parent, Subtree) :-
 newRoot(Parent, NewSubtree) :-
 	genRoot(Goal),
 	goalAsSubtree(Goal, Parent, NewSubtree),
-	pengine_debug('New Goal ~w Subtree2 ~w Parent ~w ~n',[Goal, NewSubtree, Parent]),
-	subtreePlusGoal(NewSubtree, Parent, Parent2).
+	% pengine_debug('New Goal ~w Subtree2 ~w Parent ~w ~n',[Goal, NewSubtree, Parent]),
+	subtreePlusGoal(NewSubtree, Parent, _).
 
 % build a new goal as a subtree. A goal is always the head of a subtree
 newGoal(Explanation, Parent, Parent2, NewSubtree) :-
@@ -372,19 +372,19 @@ newGoal(Explanation, Parent, Parent2, NewSubtree) :-
 % build a new Goal child and add it to the subtree
 newGoalChild(ID, Type, Subtree, Subtree2) :-
 	explanationFromID(ID, Explanation),
-	pengine_debug('SWI: Explanation new ~w Subtree ~w ~n',[Explanation, Subtree]),
+	% pengine_debug('SWI: Explanation new ~w Subtree ~w ~n',[Explanation, Subtree]),
 	newGSN(Type, ID,  Explanation, Element),
-	subtreePlusElement(Type, Element, Subtree, Subtree2),
-	pengine_debug('SWI Subtree2 ~w~n',[Subtree2]).
+	subtreePlusElement(Type, Element, Subtree, Subtree2).
+	% pengine_debug('SWI Subtree2 ~w~n',[Subtree2]).
 
 % add new goals as subtree and add it to the strategy
 % the childs depend on the strategy
 newStrategyGoals(Strategy, Subtree, Subtree3) :-
 	subtree(explanation, Subtree, EG), 
 	strategy(exp, Strategy, ES),
-	pengine_debug('SWI: before transform ~w ~w~n',[ES, EG]),
+	% pengine_debug('SWI: before transform ~w ~w~n',[ES, EG]),
 	transform(ES, EG, E),
-	pengine_debug('SWI: after transform ~w~n',[E]),
+	% pengine_debug('SWI: after transform ~w~n',[E]),
 	newGoalSet(E, ES, Subtree, Subtree3).
 
 newGoalSet(Explanation, Rule, Subtree, Subtree3) :-
@@ -402,25 +402,25 @@ nextGoal([E| Tail], Subtree, Subtree3) :-
 
 addGoalChild(Type, TreeID, ID, NewSubTree) :-
 	access(gsnTree(Tree)),
-	access(gsnPalette(List)),
-	pengine_debug('SWI: The List before add~w~n ~w ~w~n',[List, TreeID, ID]),
+	access(gsnPalette(_)),
+	% pengine_debug('SWI: The List before add~w~n ~w ~w~n',[List, TreeID, ID]),
 	updateTree(TreeID, ID, Type, Tree, Tree2, NewSubTree),
-	pengine_debug('SWI: The Tree ~w~n',[Tree2]),
+	% pengine_debug('SWI: The Tree ~w~n',[Tree2]),
 	store(gsnTree(Tree2)).
 
 updateTree(TreeID, ID, Type, Tree, Tree2, Tree2) :-
 	subtree(id, Tree, TreeID),
-	pengine_debug('SWI: The Tree found ~w ID ~w~n',[Tree, TreeID]),
+	% pengine_debug('SWI: The Tree found ~w ID ~w~n',[Tree, TreeID]),
 	newGoalChild(ID, Type, Tree, Tree2),!.
 
 updateTree(TreeID, ID, Type, Tree, Tree3, NewSubtree) :-
 	subtree(childs, Tree, Childs),
-	pengine_debug('SWI: St search : ~w -> ~w ~n',[Tree, Childs]),
+	% pengine_debug('SWI: St search : ~w -> ~w ~n',[Tree, Childs]),
 	updateChilds(TreeID, ID, Type, Childs, Childs2, NewSubtree),
 	subtree(childs, Childs2, Tree, Tree3).
 
 % update the childs of a tree
-updateChilds(TreeID, ID, _, [], [], _) :- false.
+updateChilds(_, _, _, [], [], _) :- false.
 
 % go over all child subtrees
 updateChilds(TreeID, ID, Type, [H|T], [H2|T], NewSubtree) :-
@@ -449,7 +449,7 @@ subtreePlusElement(solution, Element, subtree(Goal, [], [], Parent), Subtree2) :
 	Subtree2 = subtree(Goal, Element, [], Parent).
 
 % special case if the goal is the root goal
-subtreePlusGoal(GoalAsSubtree, root, root) :-!.
+subtreePlusGoal(_, root, root) :-!.
 
 % add the goal as subtree to a parent subtree
 subtreePlusGoal(GoalAsSubtree, Parent, Parent3) :-

@@ -7,7 +7,7 @@
 // layer is a list of subtrees, each subtree has a body
 // layerlist = [subtree1, subtree2....], with index = layer no
 var layerList = []; 
-var layerMassList = [];
+var layerSpaceList = []; 
 var solutionList = []; 
 // subtreeList is a list of all subtrees, 
 // describing the embodyment of a subtree
@@ -21,6 +21,7 @@ var numberStrategy = 1;
 const iMass = 0; 
 const iKFact = 1; 
 const iV = 2; 
+const cellSize = 80; //pixel
 var flipSign = -1;
 
 // subtree kommt von Prolog als Liste, fast wie der fertige Body
@@ -30,6 +31,8 @@ var flipSign = -1;
 //     const childsIX = 2; 
 //     const treeMassIX = 3;
 //      const parendIX = 4; 
+
+
 function updateSubtreeChild(idParent, idChild, childmass) 
 {
     console.log("CHILD: Subtrees at the moment ", subtreeList);
@@ -55,7 +58,7 @@ function updateSubtreeStrategy(id, strategy, mass)
     subtree[strategyIX] = strategy; 
     subtree[treeMassIX] = mass; 
 
-    propagateMass(parentID, subtree[treeMassIX]);
+    //propagateMass(id, parentID, mass);
 
     // If strategy added all "free " solutions has to increase the level
     for (var i = 0; i < solutionList.length; i++)
@@ -78,38 +81,152 @@ function updateSubtreeSolution(id, solution, mass)
     subtree[strategyIX] = solution; // strategiesy and solution have the same place in subtree
     subtree[treeMassIX] = mass; 
 
-    propagateMass(parentID, subtree[treeMassIX]);
+    //propagateMass(id, parentID, mass);
     console.log("SOLUTION Subtree solution now", id, subtree);
 } 
 
-function propagateMass(parentID, mass)
+function propagateMass(id, parentID, mass)
 {   
     if (parentID != "root")
     {
-        console.log("Propagate: Parent is ", parentID);
         const subtree = subtreeList[parentID];
+        const subtree2 = subtreeList[id];
+
         subtree[treeMassIX] += mass; 
-        console.log("Propagate: mass ", mass);
-        const id = subtree[parentIX];
-        propagateMass(id, subtree[treeMassIX]);
+      
+        //updateSpace(subtree2);
+        const id2 = subtree[parentIX];
+
+        propagateMass(parentID, id2, subtree[treeMassIX]);
     }
+}
+
+
+function updateSubtree(iv, id)
+{
+    subtreeList[id][intervalIX] = iv; 
+    console.log("Update this",  subtreeList[id]);
 }
 
 // adds a subtree to the subtreelist, index is the id of the head goal
 function addSubtree(level, subtree, id)
 {
-    subtreeList[id] = subtree; 
+    //console.log("ADD ANGEKOMMEN", subtree);
+
+    // converstion to numeric is needed
+   const iv = subtree[5]; 
+
+    newSubtree = [subtree[headIX],
+                    subtree[strategyIX],
+                    subtree[childsIX],
+                    subtree[treeMassIX], 
+                    subtree[parentIX],
+                    level,
+                    iv];
+
+    subtreeList[id] = newSubtree; 
+
+    //console.log("NEW SUBTREE", newSubtree);
+
     if (!Array.isArray(layerList[level]))
     {
+        // create an empty subgraph, every node represents a cell of width
         layerList[level] = []; 
-        layerMassList[level] = new Array(viewportSize/50);
-        layerMassList[level].fill(0);
+        layerSpaceList[level] = [];
     }
-    layerList[level].push(subtree);
 
+    layerList[level].push(newSubtree);
+    // füge subtree an der richtigen Stelle ein
+    //layerSpaceList[level] =  addInterval(layerSpaceList[level], subtree); 
+   
     console.log("ADD: Layers now ", layerList);
-    console.log("ADD: Layer masses now ", level, layerMassList);
 }
+
+
+ 
+// erzeuge Interval aus den Massedaten
+function createInterval(offset, m, element)
+{
+    r = (m/100)*cellSize;
+    const iv = { "a" : offset - r,
+                 "b" : offset + r,
+                 "x" : offset, 
+                 "element" : element,
+                 "delta" : 0
+    }
+     console.log("CREATE", iv, iv.element );
+   // if (Number.isNaN(iv.element[intervalIX]))
+    //    iv.element[intervalIX]= 0.001; 
+   
+    return iv; 
+}
+
+function shiftAllIntervals(ix1, ix2, cutset, space, step)
+{
+    var n0 = ix1; 
+    var nn = ix2; 
+    const space2 = [];
+
+    if (cutset == null)
+        return; 
+
+    if (ix1 > ix2)
+    {
+        n0 = ix2;
+        nn = ix1;
+    }
+ 
+    var lenCut = (cutset.b-cutset.a)*step;
+
+    for (var n = n0; n <= nn; n ++)
+    {
+        const r = shiftInterval(lenCut, space[n]);
+        space2.push(r);
+        
+    }
+    console.log("SHIFT2",space2);
+    return space2; 
+}
+
+function shiftInterval(x, iv)
+{   
+   
+    const iv2 = { "a": iv.a + x,
+                    "b": iv.b + x,
+                    "x": iv.x + x, 
+                    "element" : subtree,
+                    "delta": x};
+    subtree[intervalIX] = x;
+    //const subtree2 = subtree.map((xx) => xx);
+    //console.log("SHIFT",iv2.element);
+
+    return iv2; 
+}
+
+function cutSet(iv1, iv2)
+{
+    var cut = null; 
+
+    const numbers = [iv1.a, iv1.b, iv2.a, iv2.b];
+    numbers.sort(); 
+    // the middle are the cut set
+    cut = {"a": numbers[1],
+            "b": numbers[2],
+            "x": (numbers[2] -numbers[1])/2 + numbers[1]};
+
+    // every number the element must element of both intervals, test on point
+    // if it is really a cut set mid point must be part of both iv1 and iv2
+    if (inInterval(cut.x, iv1))
+        return cut; 
+    else
+        return null; 
+}
+
+function inInterval(x, iv)
+{
+    return (x >= iv.a) && (x < iv.b);
+}
+
 
 function kFactor(level) {
 

@@ -3,6 +3,8 @@ const strategyIX = 1;
 const childsIX = 2; 
 const treeMassIX = 3; 
 const parentIX = 4; 
+const levelIX = 5; 
+const intervalIX = 6; 
 const headIX = 0; 
 const viewportSize = 8000; 
 const canvasSize = 1400; 
@@ -11,7 +13,7 @@ const ressourceSize = 300;
 var stage; 
 var playWindow; 
 var ressourceWindow;
-var session = pl.create(50000);
+var session = pl.create(100000);
 var parsed = false; 
 var canvasWidth;
 var canvasHeight;
@@ -71,7 +73,6 @@ function handleCreate() {
 
     // call the init of the game at SWI Prolog
     pengine.ask('createGame(8, Msg)');
-// send a query to pengine = SWI Prolog = Sever Code
 }
 
 // Pengine handle function for reveiving SWI Prolog answer
@@ -89,11 +90,13 @@ function handleOutput()
     }
     // store the answer of Pengine (=JSON object) into global variable 
     result = this.data[0];
-    console.log("Pengine Answer", result);
+    //console.log("Pengine Answer", result);
     
     // analyse the result taken from Pengine. This will result in updated
     // knowledge base (=new predicates) in Tau Prolog
-    session.query("takeResult(["+ resList.toString() + "], result, Term).");
+    const querytext = "takeResult(["+ resList.toString() + "], result, Term).";
+    //console.log("Querytext", querytext);
+    session.query(querytext);
     session.answer(executeQuery);
 }
 
@@ -108,12 +111,13 @@ var printAnswer = function(answer){
     // Debug code
     $("#Tauout").append(pl.format_answer(answer));
     $("#Tauout").append("<br>");
-    console.log(' Tau answer:' + answer);
+    console.log(' Tau error answer:' + answer);
 }
 
 
 function executeQuery(answer) 
 {
+    console.log("ANSWER ", answer);
     if (callBackQueue.length  == 0)
     {
         console.log("Pengine Ask");
@@ -148,7 +152,7 @@ function pixiStart()
         "/graphics/solution.png",
         "/graphics/strategy.png",
         "/graphics/goal.png",
-        "/graphics/background.png",
+        "/graphics/background2.png",
         "/graphics/windowarea.png",
         "/graphics/auge.png",
         "/graphics/hand.png",
@@ -171,7 +175,7 @@ function pixiAssets()
         PIXI.loader.resources["/graphics/strategy.png"].texture
     );
     background = new PIXI.Sprite(
-        PIXI.loader.resources["/graphics/background.png"].texture
+        PIXI.loader.resources["/graphics/background2.png"].texture
     );
    
     canvasWidth = document.getElementById("game-canvas").width;
@@ -219,7 +223,7 @@ function pixiAssets()
 function adjustLine(line, x1, y1, x2, y2) 
 {
     line.clear();  
-    line.lineStyle(5, 0x5F5F5A, 10);
+    line.lineStyle(5, 0xCFCFCC, 10);
     line.moveTo(x1, y1);
     line.lineTo(x2, y2);
 
@@ -298,160 +302,82 @@ function pixiUpdate()
     }
 
     ///////// layer layout = horizontal layout
+    var delta1; 
+    var delta2; 
 
-    //1-based 
-    // layer enthalten subtrees, jeder muss layoutet werden
-    // ein Subtree hat goal - Strategy oder Solution - Kindersubtrees
     for (var j = 1; j < layerList.length ; j+=2) 
     {
         const layer = layerList[j];
-    
-        // every subtree hangs with its head = the goal in the layer
-        // every subtree has (in general) this head goal, a strategy/solution and child goals
+
         for (var i = 0; i < layer.length; i++) 
         {
             const subtree = layer[i];
-            const headGoal = subtree[headIX]; // head is always a goal
-            const childs = subtree[childsIX];
-            const headStrategy = subtree[strategyIX]; 
-    
-            const mode = childs.length % 2; 
-            const mass = [0,0];
 
-            for (var n = 0; n < childs.length; n++)
+            if (subtree != null)
             {
-                const subsubtreeID = childs[n];
-                const subsubtree = subtreeList[subsubtreeID];
-                const treeMass = subsubtree[treeMassIX];
-                const goal = subsubtree[headIX]; // das ist das Goal
-                const strategy = subsubtree[strategyIX];
+                const goal = subtree[headIX];
+                const strategy = subtree[strategyIX];
+                const parentID = subtree[parentIX];
+                var headStrategy;
+                var parentSubtree; 
 
-                const index = n % 2; 
+                if (parentID != 'root')
+                {
+                    parentSubtree = subtreeList[parentID ]; 
+                    headStrategy = parentSubtree[strategyIX];
+
+                    // das ist die Verschiebung des Subtrees, dessen Child dieser aktuelle Subtree ist
+
+                }
                
-                // childs sind abgespeichert als (bezogen auf v bzw. Orbit: 
-                // [0, 1, -1, 2, -2, ...] wenn ungerade zahl
-                // [1, -1, 2, -2, ...] wenn gerade zahl
 
-                // erste Korretur: der in der Mittelachse muss darauf bleiben
-                // die Mittelachse kann sich bewegen durch layout des Layers darüber
-                if (goal.v == 0) 
+                iv = subtree[intervalIX];
+                const iv2 = shiftScaleInterval(viewportSize/2, cellSize, iv);
+
+                //space[i].delta = delta1/20;
+                delta2 = (iv2[1]-iv2[0])/2 + iv2[0] - goal.x;
+                goal.x += delta2/20 ;  //animation
+               
+                if  (!Array.isArray(strategy))
                 {
-                    goal.x = headGoal.x; 
-                    
+                   strategy.x = goal.x; 
+                    // adjust the lin
+                   adjustLine(strategy.incomming, goal.x, goal.y,strategy.x, strategy.y);
                 }
-                else
+
+             
+                if (parentID != 'root')
                 {
-                    mass[index] += treeMass; 
-                    const r = (goal.x - headGoal.x);
-                    var sign = Math.sign(r); 
-                    const sign2 = Math.sign(goal.v);
-                    // zweite Korretur: das Objekt muss auf der richtigen Seite der Achse sein
-                    // nur Abstand zur Achse kann geregelt werden
-                    // vorzeichen von v gibt die Seite an
-                    if (sign != sign2)
-                    {
-                        // spieglen an der Achse
-                       goal.x += sign*2*r; 
-                       sign *= sign; 
+                    if (!Array.isArray(headStrategy)) 
+                    {// redraw the line
+                        adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
                     }
-
-                    const alpha = 128;
-                    const gamma = massEffectFactor(headGoal.mass, treeMass, goal.v); 
-                    const pedalForce =  goal.v*treeMass*alpha*gamma/r*sign2;
-                    const visibleMass = massReduceFactor(headGoal.mass, treeMass, mass[index], goal.v)*headGoal.mass; 
-                    const attraction =headGoal.mass*visibleMass*sign;  
-                    goal.x += displacementForce(pedalForce, attraction, 10);
-                    
-                    //if (n > 2) console.log("mass", goal.v, mass[index]);
-
-                    // if there is a strategy move it too
-                    if  (!Array.isArray(strategy))
-                    {
-                        strategy.x = goal.x; 
-                        // adjust the lin
-                        adjustLine(strategy.incomming, goal.x, goal.y,strategy.x, strategy.y);
-                    }
-                        //console.log("r", center, element.x, r, pedalForce - attraction);
-                        //console.log("r", sign, "force",pedalForce, attraction, (pedalForce -attraction), subBody[0].x);
                 }
-                // spaceEffect(goal.x, treeMass, j);
-                adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
+
             }
-            if (!Array.isArray(headStrategy)) 
-            {// redraw the line
-                headStrategy.x = headGoal.x;
-                adjustLine( headStrategy.incomming,  headStrategy.x, headStrategy.y,headGoal.x, headGoal.y);
-            }
+
         }
+        // for (var i = 0; i < space.length; i++) 
+        // {
+        //     space[i].x += space[i].delta;
+        //     space[i].delta = 0; 
+        // }
+
+
     }
-   
+
     renderer.render(stage);
     requestAnimationFrame(pixiUpdate);
 }
 
-
-function displacementForce(F1, F2, Animationsteps) {
-
-    // the result is displacement in pixel
-    var dF = (F1 - F2)/78;
-   
-    //dF += layerMassList[level][x2];    
-
-    if (Math.abs(dF) < 1/Animationsteps) 
-        dF = 0.0;
-    else 
-        dF = dF/Animationsteps;
-
-    if (dF > 300) dF = 300; 
-    if (dF < -300) dF = -300; 
-    
-    return dF; 
-}
-
-// reduces the effect of the mass of a subtree. Without the subtree would be placed too far from mid
-function massEffectFactor(M, m, v) 
-{
-    const term1 = Math.abs(v)*(m-100);
-    const term2 = M*M; 
-
-    const k = 1 - term1/term2/16;
-
-    return k;
-}
-
-
-// mode = 0 even number of childs, 1 = odd number of childs
-function massReduceFactor( M,  myMass, msum, v) 
-{
-    var n2;
-    // calculate the indes in childlist of the precceding mass relative to rotation centrum
-     // childs sind abgespeichert als (bezogen auf v bzw. Orbit: 
-                // [0, 1, -1, 2, -2, ...] wenn ungerade zahl
-                // [1, -1, 2, -2, ...] wenn gerade zahl
-
-    // map is [n, mode, n displacement]
-    var nMap = [ [0, 0],  // n = 0 mode 0, 1
-                 [0, -1] ]    // n = 1, mode 0,1;
-                
-    // if (n < 2)  
-    //     n2 = nMap[n][mode];
-    // else
-    //     n2 = -2; 
-
-    // const subsubtreeID = childs[n+n2];
-    // const subsubtree = subtreeList[subsubtreeID];
-    // const treeMass = subsubtree[treeMassIX];
-
-    // const k = 1-16*(treeMass-100)/M/M; 
  
-    // ~ 1/v ~1/myMass 
-    const m_ref = (Math.abs(v)/128-1)*100;
-    const mbefore = msum-myMass;
-    var k = 1; 
 
-    if (m_ref > 0) 
-        k = mbefore/m_ref*(100/myMass); 
-    return 1/k; 
+function shiftScaleInterval(x, scale, iv)
+{
+    x1 = iv[0]*scale + x; 
+    x2 = iv[1]*scale + x;
+
+    return [x1, x2];
 }
 
 /////////////////////////////////// Event Handling ///////////////////////////////////////////////
@@ -509,7 +435,7 @@ function onDragEnd()
         {
             const query = 'addGoalChild(strategy,' + id +', '+ draggedID;
             callBackQueue.push(query + ').');
-            console.log("an Pengine", query);
+            //console.log("an Pengine", query);
             pengine.ask(query + ', CurrentSubtree)');
             playWindow.vpRef.removeChild(this);
             touchedObject[0].receptor = false; 
@@ -521,7 +447,7 @@ function onDragEnd()
         {
             const query = 'addGoalChild(solution,' + id +', '+ draggedID ;
             callBackQueue.push(query + ').');
-            console.log("An Pengine ", query);
+            //console.log("An Pengine ", query);
             pengine.ask(query + ', CurrentSubtree)');
             const n = solutionList.indexOf(this);
             playWindow.vpRef.removeChild(this);

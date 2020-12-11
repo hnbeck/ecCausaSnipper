@@ -23,6 +23,9 @@
 
 
 :- http_handler(files(.), serve_files,  [prefix]).
+:- http_handler(lib(.), serve_files,  [prefix]).
+:- http_handler(image(.), serve_files,  [prefix]).
+:- http_handler(sound(.), serve_files,  [prefix]).
 :- http_handler(root(.), main,  [prefix]).
 
 :- multifile http_json/1.
@@ -37,6 +40,7 @@ http_json:json_type('text/x-prolog').
 http_json:json_type('text/prolog').
 
 http:location(files, '/web', []).
+http:location(lib, '/lib', []).
 http:location(image, '/graphics', []).
 http:location(sound, '/sound', []).
 
@@ -53,10 +57,13 @@ serve_files(Request) :-
 		http_reply_from_files(web, [], Request).
 
 serve_files(Request) :-
-		http_reply_from_files(image, [], Request).
+		http_reply_from_files(graphics, [], Request).
 
 serve_files(Request) :-
 		http_reply_from_files(sound, [], Request).
+
+serve_files(Request) :-
+		http_reply_from_files(lib, [], Request).
 
 serve_files(Request) :-
 		http_404([\p('Sorry could not find')], Request).
