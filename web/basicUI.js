@@ -1,4 +1,13 @@
 //Important constants
+// general constants for graphics
+const viewportSize = 8000; 
+const canvasSize = 1400; 
+const ressourceSize = 300; 
+var layerheight = 100; //default 
+var numberStrategy = 1; 
+const cellSize = 80; //pixel
+
+// this is the definition of basic data structure: the subtrees
 const strategyIX = 1; 
 const childsIX = 2; 
 const treeMassIX = 3; 
@@ -6,9 +15,8 @@ const parentIX = 4;
 const levelIX = 5; 
 const intervalIX = 6; 
 const headIX = 0; 
-const viewportSize = 8000; 
-const canvasSize = 1400; 
-const ressourceSize = 300; 
+
+
 // context objects
 var stage; 
 var playWindow; 
@@ -42,70 +50,76 @@ function waitforParsed(msec, count)
 
 //////////////////////////////// some Prolog initialization stuff ///////////////////////////////////
 
-function start_Prolog()
-{
-    // Tau is loaded, now pengine and during this also init tau
-    pengine = new Pengine({
-        oncreate: handleCreate, 
-        onsuccess: handleOutput,
-        destroy: false
-    });     
-}
+// function start_Prolog()
+// {
+//     // Tau is loaded, now pengine and during this also init tau
+//     pengine = new Pengine({
+//         oncreate: handleCreate, 
+//         onsuccess: handleOutput,
+//         destroy: false
+//     });     
+// }
 
 function init_Prolog() {
     // load tau
         if (!parsed)
         {
-            $.get("/web/webProlog.pl", function(data) {
+            $.get("/web/js_prolog_interface.pl", function(data) {
                 parsed = session.consult(data);
-                session.query("init.");
-                session.answer( function (answer) {
-                    start_Prolog(); 
-                })
+                $.get("/web/objects.pl", function(data) {
+                    parsed = session.consult(data); 
+                    $.get("/web/webProlog.pl", function(data) {
+                        parsed = session.consult(data);
+                        session.query("init.");
+                        session.answer( function (answer) {
+                            console.log("Init done");
+                        //start_Prolog(); 
+                        });
+                    });
+                });
             });
-           
         }
 }
 
 //////////////////  here are the Pengine handle functions //////////////////
 
-function handleCreate() {
+// function handleCreate() {
 
-    // call the init of the game at SWI Prolog
-    pengine.ask('createGame(8, Msg)');
-}
+//     // call the init of the game at SWI Prolog
+//     pengine.ask('createGame(8, Msg)');
+// }
 
 // Pengine handle function for reveiving SWI Prolog answer
 // at the first call the initialized tree will be required
 
-function handleOutput()
-{
-    var resList = []; 
+// function handleOutput()
+// {
+//     var resList = []; 
 
-    for (x in this.data[0]){
-        // properties must be lowercase in order for Tau Prolog
-        this.data[0][x.toLowerCase()] = this.data[0][x];
-        this.data[0][x].delete;
-        resList.push(x.toLowerCase());
-    }
-    // store the answer of Pengine (=JSON object) into global variable 
-    result = this.data[0];
-    //console.log("Pengine Answer", result);
+//     for (x in this.data[0]){
+//         // properties must be lowercase in order for Tau Prolog
+//         this.data[0][x.toLowerCase()] = this.data[0][x];
+//         this.data[0][x].delete;
+//         resList.push(x.toLowerCase());
+//     }
+//     // store the answer of Pengine (=JSON object) into global variable 
+//     result = this.data[0];
+//     //console.log("Pengine Answer", result);
     
-    // analyse the result taken from Pengine. This will result in updated
-    // knowledge base (=new predicates) in Tau Prolog
-    const querytext = "takeResult(["+ resList.toString() + "], result, Term).";
-    //console.log("Querytext", querytext);
-    session.query(querytext);
-    session.answer(executeQuery);
-}
+//     // analyse the result taken from Pengine. This will result in updated
+//     // knowledge base (=new predicates) in Tau Prolog
+//     const querytext = "takeResult(["+ resList.toString() + "], result, Term).";
+//     //console.log("Querytext", querytext);
+//     session.query(querytext);
+//     session.answer(executeQuery);
+// }
 
 
-function sendPengine() {
-    var query = $("#Tauhtml").text();
-    //console.log("Query will be: " + query);
-    pengine.ask(query);
-}
+// function sendPengine() {
+//     var query = $("#Tauhtml").text();
+//     //console.log("Query will be: " + query);
+//     pengine.ask(query);
+// }
 
 var printAnswer = function(answer){
     // Debug code
@@ -122,7 +136,7 @@ function executeQuery(answer)
     {
         console.log("Pengine Ask");
         callBackQueue.push('startGame(X).')
-        pengine.ask('genInitalObjects(CurrentSubtree, GSNPalette)');
+       // pengine.ask('genInitalObjects(CurrentSubtree, GSNPalette)');
     }
     else
     {
@@ -201,7 +215,7 @@ function pixiAssets()
     // initial configuration
     playWindow.x = 0;
     playWindow.y = 0;
-    playWindow.vpRef.scale.set(0.5);
+    playWindow.vpRef.scale.set(0.9);
     playWindow.vpRef.sortableChildren = true; 
     ressourceWindow.x = canvasWidth-ressourceSize;
     ressourceWindow.y = 0;
@@ -213,8 +227,8 @@ function pixiAssets()
 
     init_Prolog(); 
     
-    session.query("showTree.");
-    session.answer();
+    //session.query("showTree.");
+    //session.answer();
 
     console.log("Subtreelist at the End", subtreeList);
     requestAnimationFrame(pixiUpdate);
@@ -267,7 +281,7 @@ function pixiUpdate()
             {
 
                 const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
-                const root = rootSt[headIX];
+                const root = rootSt.goal;
 
                 adjustLine(elemlist[i].incomming, elemlist[i].x, elemlist[i].y, root.x, root.y);
             }
@@ -315,42 +329,42 @@ function pixiUpdate()
 
             if (subtree != null)
             {
-                const goal = subtree[headIX];
-                const strategy = subtree[strategyIX];
-                const parentID = subtree[parentIX];
                 var headStrategy;
                 var parentSubtree; 
 
-                if (parentID != 'root')
+                if (subtree.parentID != 'root')
                 {
-                    parentSubtree = subtreeList[parentID ]; 
-                    headStrategy = parentSubtree[strategyIX];
-
-                    // das ist die Verschiebung des Subtrees, dessen Child dieser aktuelle Subtree ist
-
+                    parentSubtree = subtreeList[subtree.parentID]; 
+                    headStrategy = parentSubtree.strategy;
                 }
                
+                iv = subtree.interval;
+                const iv2 = shiftScaleInterval(viewportSize/2, cellSize, subtree.interval);
 
-                iv = subtree[intervalIX];
-                const iv2 = shiftScaleInterval(viewportSize/2, cellSize, iv);
-
-                //space[i].delta = delta1/20;
-                delta2 = (iv2[1]-iv2[0])/2 + iv2[0] - goal.x;
-                goal.x += delta2/20 ;  //animation
+                delta2 = (iv2[1]-iv2[0])/2 + iv2[0] - subtree.goal.x;
+                subtree.goal.x += delta2/20 ;  //animation
                
-                if  (!Array.isArray(strategy))
+                if  (!Array.isArray(subtree.strategy))
                 {
-                   strategy.x = goal.x; 
+                   subtree.strategy.x = subtree.goal.x; 
                     // adjust the lin
-                   adjustLine(strategy.incomming, goal.x, goal.y,strategy.x, strategy.y);
+                   adjustLine(subtree.strategy.incomming, 
+                                subtree.goal.x, 
+                                subtree.goal.y, 
+                                subtree.strategy.x, 
+                                subtree.strategy.y);
                 }
 
              
-                if (parentID != 'root')
+                if (subtree.parentID != 'root')
                 {
                     if (!Array.isArray(headStrategy)) 
                     {// redraw the line
-                        adjustLine( goal.incomming,  headStrategy.x, headStrategy.y,goal.x, goal.y);
+                        adjustLine( subtree.goal.incomming,  
+                                    headStrategy.x, 
+                                    headStrategy.y, 
+                                    subtree.goal.x, 
+                                    subtree.goal.y);
                     }
                 }
 

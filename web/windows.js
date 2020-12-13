@@ -53,7 +53,7 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
 function viewPos(name, width, height, winWidth, winHeight)
 {
     const pos = new PIXI.Point(0,0);
-    const scale = 0.5; 
+    const scale = 0.9; 
 
     if (name == "play")
     {

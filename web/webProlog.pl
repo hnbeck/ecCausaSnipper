@@ -16,15 +16,91 @@
 :- use_module(library(dom)).
 :- use_module(library(js)).
 :- use_module(library(lists)).  
+:- use_module(library(random)).  
 
 % setup the initial next player and the deck costume
 init :-
+	write('start init'),
 	holdTerm(0, gsnCounter),
 	holdTerm(callback(updateSubtreeSolution), solution),
 	holdTerm(callback(updateSubtreeStrategy), strategy),
 	holdTerm(callback(updateSubtreeChild), child),
-	holdTerm(callback(updateSubtree), update),
-	write('Tau Prolog: done 17'). 
+	holdTerm(callback(updateSubtreeEmbodiment), update),
+	holdTerm(callback(addSubtree), newSubtree),
+	holdTerm(types(rl, mt, ph), types),
+	setupGame(Subtree, List),
+	write('Tau Prolog: done 99'), write(Subtree), write(List). 
+
+	
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% structure coder %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% the explanation of every gsn element like goal, solution or stragegy is
+% its definition of explanation types: rule, measurement or phenomenon
+% search the explanation of a given element
+
+explanationFromID(ID, Explanation) :-
+	state(gsn, gsnPalette(List)),
+	expByID(List, ID, Explanation).
+
+expByID([], _, _) :-!.
+
+expByID([H|T], ID, Exp) :-
+	arg(1, H, ID),
+	arg(2, H, Exp),!.
+
+expByID([H|T], ID, Exp) :-
+ 	arg(1, H, ID2),
+	arg(2, H, _),
+	expByID(T, ID, Exp).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% !(S,S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%% goal Explanation generators %%%%%%%%%%%%%%
+
+goalExp --> g_measurement, g_phenomenon, g_law.
+
+g_measurement --> { random_between(2,8, I) }, [[I, mt]].
+g_phenomenon --> { random_between(2,8, I) }, [[I, ph]].
+g_law --> { random_between(2,8, I) }, [[I, rl]].
+
+genExplanation(goal, Explanation) :-
+	phrase(goalExp, Explanation).
+
+%%% strategy explanation generator
+% which in fact is a rule generator
+strategyExp(N1, T1, N2, T2, N3, T3) --> head(N1, T1), body1(N2, T2), body2(N3, T3).
+
+head(N1, T1) --> [[N1, T1]].
+body1(N2, T2) --> [[N2, T2]].
+body2(N3, T3) --> [[N3, T3]].
+
+nextType(I, I3, T) :-
+	state(types, types(A, B, C)),
+	I2 is I + 1, 
+	(I2 == 4 -> I3 = 1 ; I3 = I2),
+	arg(I3, types(A,B,C), T).
+
+genExplanation(strategy, Explanation) :-
+	random_between(1,3, I),
+	nextType(I, I2, T1), 
+	nextType(I2, I3, T2), 
+	nextType(I3, _, T3),
+	random_between(1, 3, Type),
+	ruletype(Type, N1, N2, N3),
+	phrase(strategyExp(N1, T1, N2, T2, N3, T3), Explanation).
+
+ruletype(1, 2, 1, 1).
+ruletype(2, 1, 1, 0).
+ruletype(3, 1, 0, 1).
+
+% Solution generator
+genExplanation(solution, [[1, E]]) :-
+	random_between(1,3, N),
+	state(types, types(A, B, C)),
+	arg(N, types(A,B,C), E).
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %
@@ -48,50 +124,97 @@ init :-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Generators %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+setupGame(Subtree, List3) :-
+	firstSubtree(Subtree, Root),
+	write('Setup'), write(Subtree),
+	goal(explanation, Root, [[N1, T1], [N2, T2], [N3, T3]]),
+	Sum is N1 + N2 + N3,
+	write('Generate palette : '), write(Sum),
+	palette(strategy, Sum, List), 
+	palette(solution, Sum, List2),
+	write('Slution list', List2),
+	append(List, List2, List3),
+	holdTerm(NewSubtree, gsnTree),
+	holdTerm(List3, gsnPalette).
 
 % GL = Goal, St = Strukture, So = Solution, 
-% the query to start the game
-startGame(Tree) :-
-	newPalette, 
-	state(currentsubtree, subtree(goal(ID, E), _, _, _)),
-	% write('T: root'), write(E), write(ID),
-	newGoal(ID, E, 1, 0, root, _, NewSubtree),
-	holdTerm( NewSubtree, gsnTree).
+% the query to start the games
+	
+firstSubtree(Subtree, Root) :-
+	gsnElement(goal, Root),
+	elementCause(goal, 1, Root, Root2 ),
+	goalAsSubtree(Root2, root, Subtree),
+	realSubtree(1, Root2, root, Subtree),
+	holdTerm(Subtree, gsnTree).
 
-newPalette :-
-	state(gsnpalette, gsnPalette(List)),
-	%write('T: palette'), write(List),
-	newPalette(List, 1).
+palette(Type, Sum, List) :-
+	palette(Type, Sum, 1, [], List).
 
-newPalette([], _) :-!.
+palette(_, 0, _, L, L ) :- !.
 
-newPalette([H|T], Level) :-
-	H =.. [Type, ID, Exp],
-	% write(ID),
-	genElement(Type, ID, Level, Element),
-	holdTerm(ID, gsnCounter),
-	realElement(Type, Element, []),
+palette(Type, N, Level, List, List3) :-
+	gsnElement(Type,  Element),
+	elementCause(Type, Level, Element, Element2 ),
+	embodyElement(Type, Element2, _),
+	append(List, [Element2], List2),
 	Level2 is Level + 1, 
-	newPalette(T, Level2).
-
-% search from the palette
-explanationFromID(ID, Explanation) :-
-	state(gsnpalette, gsnPalette(List)),
-	expByID(List, ID, Explanation).
-
-expByID([], _, _) :-!.
-
-expByID([H|T], ID, Exp) :-
-	arg(1, H, ID),
-	arg(2, H, Exp),!.
-
-expByID([H|T], ID, Exp) :-
-	expByID(T, ID, Exp).
+	N2 is N - 1,
+	palette( Type, N2, Level2, List2, List3).
 
 
+%% only for debugs
 showTree :-
 	state(gsnTree, Tree), 
 	writeHTML('Tauhtml', Tree, _).
+
+
+
+% the element of a goal and a stragegy are the explanation types
+% rl = rule = normative setting, mt= measurement, ph = phenomenon.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% !(S, S*)  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%  First structure , then cause
+gsnElement(Type, Element) :-
+	genExplanation(Type, Explanation),
+	state(gsnCounter, No),
+	No2 is No + 1, 
+	holdTerm(No2, gsnCounter),
+	Element =.. [Type, No2, _, Explanation].
+
+
+% causes
+elementCause(solution, _,  Element, Element2) :-
+	body(3, 100, 0.5, Body),
+	solution(body, Body, Element, Element2).
+
+elementCause(goal, Level,  Element, Element2) :-
+	body(Level, 100, 0, Body),
+	goal(body, Body, Element, Element2).
+
+elementCause(strategy, Level,  Element, Element2) :-
+	body(Level, 0, 0, Body),
+	strategy(body, Body, Element, Element2).
+
+
+% every goal is a subtree
+goalAsSubtree(Goal, root, Subtree) :-
+	goal(mass, Goal, M),
+	newInterval(M, IV),
+	Subtree = subtree(Goal, [], [], M, root, IV),!. 
+
+goalAsSubtree(Goal, Parent, Subtree) :-
+	goal(mass, Goal, M),
+	newInterval(M, IV),
+	subtree(id, Parent, ID),
+	Subtree = subtree(Goal, [], [], M, ID, IV).
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% !(S, C)  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % M is a mass
 newInterval(M, IV) :-
@@ -120,109 +243,41 @@ inInterval(X, [A, B]) :-
 midInterval([A, B], C) :-
 	C is (B-A)/2 + A.
 
-% the element of a goal and a stragegy are the explanation types
-% rl = rule = normative setting, mt= measurement, ph = phenomenon.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% objects %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% physic body (masse, k-Factor, rotation speed)
-%body(Mass, KFac, V).
-% body/2
-body(body(Mass, KFac, V), [Mass, KFac, V]).
-% body/4
-body(Level, Mass, V, body(Mass, KFac, V)) :-
-	prop('kFactor', JSFkt),
-	apply(JSFkt, [Level], KFac).
 
-% all GSN Elements: gsnElement(ID, body, Explanation, asList)
-%goal(1, body(1000, KFac, V), Explanation).
-%strategy(1, body(1000, KFac, V), Explanation).
-%solution(1, body(1000, KFac, V), Explanation).
-goal(body, goal(_, Body, _), Body).
-goal(body, Body, goal(ID, _, E), goal(ID, Body, E)).
-goal(id, goal(ID, _, _), ID).
-goal(mass, goal(_, body(M, _, _), _), M).
 
-goal(level, Goal, Level, Goal2) :-
-	goal(body, Goal, body(Mass, _, V)),
-	body(Level, Mass, V, Body),
-	goal(body, Body, Goal, Goal2).
+%% newGSN(Type, Body, Explanation, Element) :-
+%% 	state(gsnCounter, No),
+%% 	No2 is No + 1, 
+%% 	holdTerm(No2, gsnCounter),
+%% 	Element =.. [Type, No2, Body, Explanation].
 
-solution(body, solution(_, Body, _), Body).
-solution(body, Body, solution(ID, _, E), solution(ID, Body, E)).
-solution(id, solution(ID, _, _), ID).
-solution(mass, solution(_, body(M, _, _), _), M).
+%% newGSN(Type, ID, Body, Explanation, Element) :-
+%% 	Element =.. [Type, ID, Body, Explanation].
 
-solution(level, Goal, Level, Goal2) :-
-	solution(body, Goal, body(Mass, _, V)),
-	body(Level, Mass, V, Body),
-	solution(body, Body, Goal, Goal2).
+%% % in future explanation will be some kind of randomness
+%% genGoal(Level, V, Goal) :-
+%% 	state(goal, goal(ID, Explanation)),
+%% 	body(Level, 100, V, Body),
+%% 	newGSN(goal, Body, Explanation, Goal).	
 
-element(Element, ID, Body, E) :-
-	arg(1, Element, ID),
-	arg(2, Element, Body),
-	arg(3, Element, E).
+%% genGoal(ID, Explanation, Level, V, Goal) :-
+%% 	body(Level, 100, V, Body),
+%% 	newGSN(goal, ID,  Body, Explanation, Goal).	
 
-element(mass, Element, M) :-
-	arg(2, Element, body(M, _, _)).
+%% genElement(solution, ID, _, Element) :-
+%% 	genElement(solution, ID, 3, 100, 0.6, Element).
 
-strategy(body, strategy(_, Body, _), Body).
-strategy(body, Body, strategy(ID, _, E), strategy(ID, Body, E)).
-strategy(id, strategy(ID, _, _), ID).
-strategy(mass, strategy(_, body(M, _, _), _), M).
+%% genElement(strategy, ID, Level, Element) :-
+%% 	genElement(strategy, ID, Level, 0, 0, Element).
 
-strategy(level, Strategy, Level, Strategy2) :-
-	strategy(body, Strategy, body(Mass, _, V)),
-	body(Level, Mass, V, Body),
-	strategy(body, Body, Strategy, Strategy2).
-
-subtree(id, subtree(goal(A, _, _), _, _, _, _, _), A).
-subtree(goal, subtree(A, _, _,  _, _, _), A).
-subtree(str, subtree(_, A, _,  _, _, _), A).
-subtree(childs, subtree(_, _, A, _, _, _), A).
-subtree(childs, Childs, subtree(G, S, _, M, P, I), subtree(G, S, Childs, M, P, I)).
-subtree(mass, subtree(_, _, _ , A, _, _), A).
-subtree(mass, M, subtree(G, S, C, _, P, I), subtree(G, S, C, M, P, I)).
-subtree(embodyData, subtree(goal(A, _, _), _, _, M, _, _), A, M).
-subtree(iv, subtree(goal(_, _, _), _, _, _, _, I), I).
-subtree(iv, IV , subtree(G, S, C, M, P, _), subtree(G, S, C, M, P, IV)).
-
-subtreeAddMass(Mass, subtree(G, S, C, M, P,I), subtree(G, S, C, M2, P, I)) :-
-	M2 is M + Mass.
-	% write('T: Mass'), write(M), write(Mass).
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% !(S, S*)  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-newGSN(Type, Body, Explanation, Element) :-
-	state(gsnCounter, No),
-	No2 is No + 1, 
-	holdTerm(No2, gsnCounter),
-	Element =.. [Type, No2, Body, Explanation].
-
-newGSN(Type, ID, Body, Explanation, Element) :-
-	Element =.. [Type, ID, Body, Explanation].
-
-% in future explanation will be some kind of randomness
-genGoal(Level, V, Goal) :-
-	state(goal, goal(ID, Explanation)),
-	body(Level, 100, V, Body),
-	newGSN(goal, Body, Explanation, Goal).	
-
-genGoal(ID, Explanation, Level, V, Goal) :-
-	body(Level, 100, V, Body),
-	newGSN(goal, ID,  Body, Explanation, Goal).	
-
-genElement(solution, ID, _, Element) :-
-	genElement(solution, ID, 3, 100, 0.6, Element).
-
-genElement(strategy, ID, Level, Element) :-
-	genElement(strategy, ID, Level, 0, 0, Element).
-
-% in future explanation is defined from other place
-genElement(Type, ID, Level, Mass, V, Element) :-
-	explanationFromID(ID, Explanation),
-	body(Level, Mass, V, Body),
-	newGSN(Type, ID, Body, Explanation, Element).
+%% % in future explanation is defined from other place
+%% genElement(Type, ID, Level, Mass, V, Element) :-
+%% 	explanationFromID(ID, Explanation),
+%% 	body(Level, Mass, V, Body),
+%% 	newGSN(Type, ID, Body, Explanation, Element).
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
@@ -275,16 +330,8 @@ childGoals([C| Childs], Level, V, Subtree, Subtree3 ) :-
 	%write('T: Mass afte'), write(M2),
 	childGoals(Childs, Level, V2, Subtree2, Subtree3).
 
-goalAsSubtree(Goal, root, Subtree) :-
-	goal(mass, Goal, M),
-	newInterval(M, IV),
-	Subtree = subtree(Goal, [], [], M, root, IV),!. 
 
-goalAsSubtree(Goal, Parent, Subtree) :-
-	goal(mass, Goal, M),
-	newInterval(M, IV),
-	subtree(id, Parent, ID),
-	Subtree = subtree(Goal, [], [], M, ID, IV).
+
 
 velocityStart(Childs, Start) :-
 	length(Childs, N),
@@ -441,175 +488,4 @@ moveIntervals(left, IV , X, IV2 ) :-
 
 moveIntervals(right, IV, X, IV2 ) :-
 	shiftInterval(X, IV, IV2).
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%
-% Communication Tau Prolog back to JS level
-%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%%%%%%%%%%%%%%%%%%%%%%%%%% message exchange %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% write the term to be send via Pengine into a DOM node to get it as string
-msg2JS(FktID, Term) :-
-	writeHTML('Tauhtml',Term, _),
-	prop(FktID, JSFkt),
-	apply(JSFkt, [], _).
-
-% write a message into a DOM element to show so that user can see it
-msg2JS(DOMId) :-
-	state(msg, Msg),
-	writeHTML(DOMId, Msg, _).
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%% embodiment on jS level %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% create an real = embodied subtree
-realSubtree(Level, Goal, Parent, Subtree) :- 
-	embodyElement(goal, Goal, JSObject),
-	embodySubtree(Subtree, JSObject, Level),
-	syncSubtree(child, Parent, Subtree).
-
-% embody the given element
-realElement(Type, Element, Subtree) :-
-	% write('T: embody element'), write(Element),
-	embodyElement(Type, Element, JSObject),
-	syncSubtree(Type, Subtree, JSObject).
-
-
-% embody new subtree  on JS level
-% means to add a new subtree including its goal to the list on JS level
-% this list is relevant for graphics
-embodySubtree(subtree(Goal, [], [], _, Parent, IV), JSObject,  Level) :-
-	goal(id, Goal, ID),
-	goal(mass, Goal, Mass),
-	ST = [JSObject, [], [], Mass, Parent, IV],
-	write('TAU:'), write(IV),
-	prop('addSubtree', JSFkt2),
-	apply(JSFkt2, [Level, ST, ID], _).
-
-% creates a body on JS level for the element 
-% this means to create a PIXI object for graphics
-embodyElement(Type, Element, JSObject) :-
-	element(Element, ID, Body, E),
-	body(Body, BList),
-	prop('gsnElemGenerator', JSFkt),
-	apply(JSFkt, [Type, ID, BList, E], JSObject).
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%% synchro with JS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-syncSubtree(update, _, Subtree) :-
-	write('TAU SYNC'), write(Subtree),
-	subtree(id, Subtree, ID),
-	subtree(iv, Subtree, IV),
-	state(update, callback(FktID)),
-	prop(FktID, JSFkt),
-	apply(JSFkt, [IV, ID], _),!.
-
-% communicate JS the new child of a subtree
-% +Parent : the subtree which gets the new child
-% +NewSubtree: the Subtree which will be the child	
-syncSubtree(child, root, _ ) :- !.
-
-syncSubtree(_, [], _) :- !.
-
-syncSubtree(child, Parent, ChildSubtree) :-
-	subtree(id, Parent, ID),
-	subtree(embodyData, ChildSubtree, ChID, M),
-	state(child, callback(FktID)),
-	prop(FktID, JSFkt),
-	apply(JSFkt, [ID, ChID, M], _),!.
-
-syncSubtree(Type, Subtree, JSObject) :-
-	subtree(embodyData, Subtree, ID, M),
-	state(Type, callback(FktID)),
-	prop(FktID, JSFkt),
-	apply(JSFkt, [ID, JSObject, M], _).
-
-% write the query term in a non visible DOM element where it can be accessed
-% at JS Level
-% +Term : a Tau Prolog term
-% -HMTLString : the term as String
-writeHTML(ID, Term, HTMLString) :-
-	get_by_id(ID, HTML),
-	open(HTML, write, Stream), 
-	write(Stream, Term), 
-	write(Stream, '\n'),
-	close(Stream),
-	get_html(HTML, HTMLString).
-
-% read in from a DOM element
-% -Term : a Tau Prolog Term
-readHTML(ID, Term) :-
-	get_by_id(ID, HTML),
-	open(HTML, read, Stream), 
-	read(Stream, Term),
-	close(Stream).
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%       Pengine  - Tau Prolog interface
-%
-%  The following predicates take the answer from a Pengine Query which is 
-% given as JS Object and transform it back to a Prolog statement.
-% This will be persistent via asserta
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% store the fact under reference of property
-% which means if pengine query contains variable P1
-% the answer will be included in Tau database as
-% state(p1, AnswerTerm)
-holdTerm(TauTerm, H) :-
-	%write('Taustate '), write(state(H, TauTerm)), % for debug
-	retractall(state(H, _)),
-	asserta(state(H, TauTerm)).
-
-% Pengine answer is coded as a JS object which is a list of properties
-% go through all properties given by the list and parse them
-% if all is parsed message is available and can put out
-% here, the SWI Prolog applicaton is designed to bind the Variable MSG
-% with a message to be displayed in use interface
-
-% property list done, last action is to give back the message in msg
-% no drawn card available only send the message
-takeResult([], _, _).
-	
-% takeResult(+Propertylist, +id of the variable containing the js object, -Tau Term)
-% H is one property which is identical to the name of a bound variable in Pengine answer!
-takeResult([H|T], JSObjectID, Term) :-
-	prop(JSObjectID, JSObject),
-	prop(JSObject, H, SubJSObject),
-	parseTerm(SubJSObject, TauTerm),
-	holdTerm(TauTerm, H),
-	takeResult(T, JSObjectID, Term).
-	
-
-% +JSObjectID: an reference to a JS object containing the answer of a Pengine query
-% every variable is a property containing an JS object for its bining
-% Example if Penge answer binds P to player(1,name) then there is something lile
-% {..."P":{functor:player, args:[1,name]}....}
-% -TauTerm: the Pengine answer as Tau Prolog Term
-
-% if element is not defined
-parseTerm(Elem, _) :- var(Elem).
-% if element is atomic
-parseTerm(Elem, Elem) :- atomic(Elem).
-% if element is a json object
-parseTerm(JSObject, TauTerm) :-
-	prop(JSObject, args, ArgList),
-	prop(JSObject, functor, Functor),
-	parseList(ArgList, TermList),
-	append([Functor], TermList, TermList2),
-	TauTerm =.. TermList2.
-% if elem is a list
-parseList([], []).
-parseList([Head | Tail ], [Head2 | Tail2]) :-
-	(is_list(Head) -> 	
-		parseList(Head, Head2);
-		(atomic(Head) -> 
-			Head2 = Head; 
-			parseTerm(Head, Head2)
-		)
-	),
-	parseList(Tail, Tail2).
 
