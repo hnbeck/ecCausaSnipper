@@ -1,5 +1,5 @@
 
-function windowGenerator(configList, width, height, winWidth, winHeight) 
+function windowGenerator(winConf) 
 {
     const window = new PIXI.Container(); 
     const viewport = new PIXI.Container();
@@ -11,16 +11,16 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
    
     ///// create viewport /////
     // indication of viewpoint area which may be much larger than camera view
-    area.alpha = configList[0].alpha;
+    area.alpha = winConf.alpha;
     area.name = "area";
     area.scale.width = viewportSize;
     area.scale.height = viewportSize;
 
-    viewport.position = viewPos(configList[0].name, width, height, winWidth, winHeight);
+    viewport.position = viewPos(winConf);
     viewport.interactive = true;
     viewport.buttonMode = false; 
-    viewport.filter = configList[0];
-    viewport.name = configList[0].name;
+    viewport.filter = {x: winConf.x, y: winConf.y};
+    viewport.name = winConf.name;
     viewport.pivot.set(0.5); 
 
     viewport
@@ -31,16 +31,16 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
           
      
     marker.lineStyle(6, 0x282200, 0.2);
-    marker.drawCircle(width/2, height/2, 10);
-    marker.drawRect(0,0,width, height);
+    marker.drawCircle(winConf.width/2, winConf.height/2, 10);
+    marker.drawRect(0,0,winConf.width, winConf.height);
 
     viewport.addChild(area, marker);
     
     // create layer for augmentation of buttons
-    const augmentLayer = augmentGenerator(configList, width, height, winWidth, winHeight, viewport);
+    const augmentLayer = augmentGenerator(winConf, viewport);
     
      // show only what camera can see
-    viewport.mask = cameraGenerator(winWidth, winHeight);
+    viewport.mask = cameraGenerator(winConf.winWidth, winConf.winHeight);
     augmentLayer.addChild(viewport.mask);
     augmentLayer.name = "augment"; 
     window.vpRef = viewport; 
@@ -50,14 +50,14 @@ function windowGenerator(configList, width, height, winWidth, winHeight)
     return window; 
 }
 
-function viewPos(name, width, height, winWidth, winHeight)
+function viewPos(winConf)
 {
     const pos = new PIXI.Point(0,0);
-    const scale = 0.9; 
-
-    if (name == "play")
+   
+    if (winConf.name == "play")
     {
-        pos.x =  -width/2*scale + winWidth/2;
+        pos.x =  -winConf.width/2*winConf.scale + winConf.winWidth/2;
+        //pos.y = winConf.winHeight/10;
     }
     return pos; 
 }
@@ -74,32 +74,38 @@ function cameraGenerator(w,h)
     return camera; 
 }
 
-function augmentGenerator(configList, width, height, winWidth, winHeight, viewport){
+function augmentGenerator(winConf, viewport){
 
     const augmentLayer = new PIXI.Container();
     const btUp = 0; 
     const btDown = 1; 
 
-    for (var i = 1; i < configList.length; i++)
+    //for (var i = 1; i < configList.length; i++)
+    //{
+     //   switch (configList[i]) {
+
+    //        case 's': // s stands for scaling allowed
+    if (winConf.type == 's')
     {
-        switch (configList[i]) {
+         const buttons = scaleGenerator(); 
 
-            case 's': // s stands for scaling allowed
-                const buttons = scaleGenerator(); 
-
-                buttons[btUp].x = winWidth - (buttons[btUp].width)*1.9; 
-                buttons[btUp].y = buttons[btUp].height*0.8; 
-                buttons[btDown].x = winWidth - (buttons[btDown].width)*0.8;     
-                buttons[btDown].y = buttons[btDown].height*0.8; 
-                augmentLayer.addChild(buttons[btUp]);
-                augmentLayer.addChild(buttons[btDown]);
-                viewport.scaling = true; 
-                break;
-
-            default: 
-                viewport.scaling = false; 
-        }
+        buttons[btUp].x = winConf.winWidth - (buttons[btUp].width)*1.9; 
+        buttons[btUp].y = buttons[btUp].height*0.8; 
+        buttons[btDown].x = winConf.winWidth - (buttons[btDown].width)*0.8;     
+        buttons[btDown].y = buttons[btDown].height*0.8; 
+        augmentLayer.addChild(buttons[btUp]);
+        augmentLayer.addChild(buttons[btDown]);
+        viewport.scaling = true; 
     }
+    else
+        viewport.scaling = false; 
+               
+    //            break;
+    //
+    //        default: 
+    //            viewport.scaling = false; 
+     //   }
+    //}
     
     augmentLayer.x = 0; 
     augmentLayer.y = 0; 
@@ -249,8 +255,10 @@ function selectPoint(value, index, array)
 function onBtUpDown () 
 {
     const vp = this.parent.vpRef; 
+    const oldScaleX = vp.scale.x;
     vp.scale.x += 0.05;
     vp.scale.y += 0.05;
+    vp.x = vp.x + viewportSize/2 * (oldScaleX -vp.scale.x); 
     this.scale.set(1.2);
 }
 
@@ -269,8 +277,10 @@ function onBtUpUp()
 function onBtDownDown () 
 {
     const vp = this.parent.vpRef;
+    const oldScaleX = vp.scale.x;
     vp.scale.x -= 0.05;
     vp.scale.y -= 0.05;
+    vp.x = vp.x + viewportSize/2 * (oldScaleX -vp.scale.x); 
     this.scale.set(1.2);
 }
 

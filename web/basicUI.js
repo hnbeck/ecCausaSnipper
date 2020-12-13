@@ -201,11 +201,35 @@ function pixiAssets()
     background.scale.set(2);
     stage.addChild(background);
 
+    var scaleFactor = 0.8
+    const windowConfigMain = {
+        x:1, 
+        y:1, 
+        scale: scaleFactor, 
+        name: 'play',
+        alpha: 0.2, 
+        type: 's',
+        width: viewportSize, 
+        height: viewportSize, 
+        winWidth: canvasWidth-ressourceSize,
+        winHeight: canvasHeight
+    }
+
+    const windowConfigRessource = {
+        x:0, 
+        y:1, 
+        scale: scaleFactor, 
+        name: 'ressource',
+        alpha: 0.4, 
+        type: 'r',
+        width: ressourceSize, 
+        height: 2000, 
+        winWidth: ressourceSize,
+        winHeight: canvasHeight
+    }
     // generate the windows, one for the tree and one as ressource store
-    playWindow = windowGenerator([{x:1, y:1, name:'play', alpha: 0.2 }, 's'],
-                                        viewportSize, viewportSize, canvasWidth-ressourceSize, canvasHeight); 
-    ressourceWindow =  windowGenerator([ {x:0, y:1, name:'ressource', alpha: 0.4 }, ''], 
-                                            ressourceSize, 2000, ressourceSize, canvasHeight); 
+    playWindow = windowGenerator(windowConfigMain); 
+    ressourceWindow =  windowGenerator(windowConfigRessource); 
 
     layerHeight = 120; 
 
@@ -215,7 +239,7 @@ function pixiAssets()
     // initial configuration
     playWindow.x = 0;
     playWindow.y = 0;
-    playWindow.vpRef.scale.set(0.9);
+    playWindow.vpRef.scale.set(scaleFactor);
     playWindow.vpRef.sortableChildren = true; 
     ressourceWindow.x = canvasWidth-ressourceSize;
     ressourceWindow.y = 0;

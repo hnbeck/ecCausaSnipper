@@ -204,8 +204,6 @@ function gsnElemGenerator(elemType, id, body, explanation)
             break; 
     }
    
-    console.log("Element angelegt, solution list ", solutionList);
-
     const gsnElement = new PIXI.Sprite(
                 PIXI.loader.resources[ressourceID].texture
             );  
@@ -214,7 +212,6 @@ function gsnElemGenerator(elemType, id, body, explanation)
     elemCont.addChild(gsnElement);
     
     lettering(elemCont, gsnElement, explanation);
- 
 
     // Linie hinzufügen
     const line = new PIXI.Graphics();
@@ -228,8 +225,6 @@ function gsnElemGenerator(elemType, id, body, explanation)
    
     elemCont.incomming = line;
     parentContainer.addChild(elemCont);
-
-     console.log("Verlasse gsnElemGenerator ", solutionList);
 
     return elemCont;
 }
