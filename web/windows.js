@@ -16,6 +16,8 @@ function windowGenerator(winConf)
     area.scale.width = viewportSize;
     area.scale.height = viewportSize;
 
+    viewport.scale.set(winConf.scale);
+
     viewport.position = viewPos(winConf);
     viewport.interactive = true;
     viewport.buttonMode = false; 
@@ -50,6 +52,7 @@ function windowGenerator(winConf)
     return window; 
 }
 
+
 function viewPos(winConf)
 {
     const pos = new PIXI.Point(0,0);
@@ -80,11 +83,6 @@ function augmentGenerator(winConf, viewport){
     const btUp = 0; 
     const btDown = 1; 
 
-    //for (var i = 1; i < configList.length; i++)
-    //{
-     //   switch (configList[i]) {
-
-    //        case 's': // s stands for scaling allowed
     if (winConf.type == 's')
     {
          const buttons = scaleGenerator(); 
@@ -99,13 +97,6 @@ function augmentGenerator(winConf, viewport){
     }
     else
         viewport.scaling = false; 
-               
-    //            break;
-    //
-    //        default: 
-    //            viewport.scaling = false; 
-     //   }
-    //}
     
     augmentLayer.x = 0; 
     augmentLayer.y = 0; 
@@ -124,6 +115,7 @@ function scaleGenerator () {
     );
 
     btUp.interactive = true;
+    btUp.buttonMode = true; 
     btUp.alpha = 0.7;
     btUp.anchor.set(0.5);
     btDown.interactive = true; 
@@ -135,14 +127,14 @@ function scaleGenerator () {
         .on('pointerup', onBtUpUp)
         .on('pointerupoutside', onBtUpUp)
         .on('pointerover', onBtUpOver)
-        .on('pointerout', onBtUpUp);
+        .on('pointerout', onBtUpOut);
 
     btDown
         .on('pointerdown', onBtDownDown)
         .on('pointerup', onBtDownUp)
         .on('pointerupoutside', onBtDownUp)
         .on('pointerover', onBtDownOver)
-        .on('pointerout', onBtDownUp);
+        .on('pointerout', onBtDownOut);
 
    return [btUp, btDown];
 
@@ -274,6 +266,11 @@ function onBtUpUp()
     this.scale.set(1.0);
 }
 
+function onBtUpOut () 
+{
+
+}
+
 function onBtDownDown () 
 {
     const vp = this.parent.vpRef;
@@ -282,11 +279,19 @@ function onBtDownDown ()
     vp.scale.y -= 0.05;
     vp.x = vp.x + viewportSize/2 * (oldScaleX -vp.scale.x); 
     this.scale.set(1.2);
+    console.log("bummer");
 }
 
-function onBtDownOver () {
+function onBtDownOver () 
+{
     this.alpha = 1.0;
 }
+
+function onBtDownOut () 
+{
+    
+}
+
 
 function onBtDownUp() {
 

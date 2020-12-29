@@ -2,9 +2,10 @@
 // general constants for graphics
 const viewportSize = 8000; 
 const canvasSize = 1400; 
-const ressourceSize = 300; 
+const ressourceSize = 220; 
+const paletteSize = 150; 
 var layerheight = 100; //default 
-var numberStrategy = 1; 
+
 const cellSize = 80; //pixel
 
 // this is the definition of basic data structure: the subtrees
@@ -21,6 +22,7 @@ const headIX = 0;
 var stage; 
 var playWindow; 
 var ressourceWindow;
+var paletteWindow; 
 var session = pl.create(100000);
 var parsed = false; 
 var canvasWidth;
@@ -211,14 +213,14 @@ function pixiAssets()
         type: 's',
         width: viewportSize, 
         height: viewportSize, 
-        winWidth: canvasWidth-ressourceSize,
+        winWidth: canvasWidth-ressourceSize-paletteSize,
         winHeight: canvasHeight
     }
 
     const windowConfigRessource = {
         x:0, 
         y:1, 
-        scale: scaleFactor, 
+        scale: 1.0, 
         name: 'ressource',
         alpha: 0.4, 
         type: 'r',
@@ -227,24 +229,48 @@ function pixiAssets()
         winWidth: ressourceSize,
         winHeight: canvasHeight
     }
+
+     const windowConfigPalette = {
+        x:0, 
+        y:1, 
+        scale: 1.0, 
+        name: 'palette',
+        alpha: 0.5, 
+        type: 'r',
+        width: paletteSize, 
+        height: 2000, 
+        winWidth: paletteSize,
+        winHeight: canvasHeight
+    }
+
+    const winPosMain = new PIXI.Point(0,0);
+    const winPosRessource = new PIXI.Point(windowConfigMain.winWidth + windowConfigPalette.winWidth,0);
+    const winPosPalette = new PIXI.Point(windowConfigMain.winWidth,0);
     // generate the windows, one for the tree and one as ressource store
     playWindow = windowGenerator(windowConfigMain); 
     ressourceWindow =  windowGenerator(windowConfigRessource); 
+    paletteWindow =  windowGenerator(windowConfigPalette); 
 
     layerHeight = 120; 
 
     stage.addChild(playWindow);
     stage.addChild(ressourceWindow);
+    stage.addChild(paletteWindow);
 
     // initial configuration
-    playWindow.x = 0;
-    playWindow.y = 0;
-    playWindow.vpRef.scale.set(scaleFactor);
+    playWindow.x = winPosMain.x;
+    playWindow.y = winPosMain.y;
+    //playWindow.vpRef.scale.set(scaleFactor);
+    console.log("Test", winPosRessource);
     playWindow.vpRef.sortableChildren = true; 
-    ressourceWindow.x = canvasWidth-ressourceSize;
-    ressourceWindow.y = 0;
+    ressourceWindow.x = winPosRessource.x;
+    ressourceWindow.y = winPosRessource.y;
     
+    paletteWindow.x = canvasWidth-ressourceSize-paletteSize;
+    paletteWindow.y = 0;
+   
     ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
+    paletteWindow.vpRef.dragReceiver = playWindow.vpRef; 
 
     stage.interactive = false;
     stage.buttonMode = false;   
@@ -277,12 +303,10 @@ function adjustLine(line, x1, y1, x2, y2)
 // anziehung e*r= mv^2/r <=> e*r^2 = v*v <=> r =v * e'
 // 100 = 10*10
 // 200 = 20 * 10 
-function pixiUpdate() 
+function placeVertical(aWindow)
 {
-    const elemlist =  playWindow.vpRef.children;
-    
-    ///////// vertical layout
-    // just walk through all elements in the playWindwow viewport layer
+    const elemlist =  aWindow.children;
+
     for (var i = 0; i < elemlist.length; i++)
     {
          if (elemlist[i].touched == true)
@@ -301,7 +325,7 @@ function pixiUpdate()
                 elemlist[i].y += updrive+gForce; 
             }
            
-            if ((elemlist[i].name != 'solution') || (elemlist[i].v == 0))
+            if ((elemlist[i].name != 'solution'))
             {
 
                 const rootSt = layerList[1][0]; // in the layer ist only one node: the goal
@@ -310,34 +334,18 @@ function pixiUpdate()
                 adjustLine(elemlist[i].incomming, elemlist[i].x, elemlist[i].y, root.x, root.y);
             }
             // take the root
-           
+            elemlist[i].autoMove(); 
         }
     }
+}
 
-    // Ressourcen Solutions layout
-
-    for (var n = 0; n < solutionList.length-1; n++)
-    {
-        for (var m = n+1; m < solutionList.length; m++)
-        {
-            const dx = (solutionList[n].x-solutionList[m].x);
-            const gForce1  = solutionList[n].mass/(dx);
-            const gForce2  = solutionList[m].mass/(dx);
-            const attract1 = solutionList[n].v /10; 
-            const attract2 = solutionList[m].v /10; 
-
-            const resultForce = gForce2 + gForce1 - (attract2+attract1);
-            //console.log("resultForce", resultForce);
-
-            if ((Math.abs(resultForce) > 2) 
-                && (solutionList[n].dragging == false)
-                && (solutionList[m].dragging == false))
-            {
-                solutionList[n].x += resultForce;
-                solutionList[m].x -= resultForce;
-            }
-        }
-    }
+function pixiUpdate() 
+{
+  
+    placeVertical(playWindow.vpRef);
+    placeVertical(ressourceWindow.vpRef);
+    placeVertical(paletteWindow.vpRef);
+    
 
     ///////// layer layout = horizontal layout
     var delta1; 
@@ -447,9 +455,11 @@ function onDragStart(event) {
     // store a reference to the data
     // the reason for this is because of multitouch
     // we want to track the movement of this particular touch
+    console.log("DRAG START", event.data)
     this.data = event.data;
     this.alpha = 0.5;
     this.dragging = true;
+
     prio = true; 
 
     event.stopPropagation();
@@ -474,7 +484,7 @@ function onDragEnd()
             const query = 'addGoalChild(strategy,' + id +', '+ draggedID;
             callBackQueue.push(query + ').');
             //console.log("an Pengine", query);
-            pengine.ask(query + ', CurrentSubtree)');
+            //pengine.ask(query + ', CurrentSubtree)');
             playWindow.vpRef.removeChild(this);
             touchedObject[0].receptor = false; 
             touchedObject = [];  
@@ -486,7 +496,7 @@ function onDragEnd()
             const query = 'addGoalChild(solution,' + id +', '+ draggedID ;
             callBackQueue.push(query + ').');
             //console.log("An Pengine ", query);
-            pengine.ask(query + ', CurrentSubtree)');
+            //pengine.ask(query + ', CurrentSubtree)');
             const n = solutionList.indexOf(this);
             playWindow.vpRef.removeChild(this);
             solutionList.splice(n, 1);
@@ -496,13 +506,16 @@ function onDragEnd()
        
     }
 
+    if (this.linked == false)
+        this.autoMove = moveHomeFunc;
+
     // hier Tau Aufrfen
     event.stopPropagation();
 }
 
 function onDragMove() 
 {
-    if (this.dragging) 
+    if (this.dragging)
     {
         const newPosition = this.data.getLocalPosition(this.parent);
         this.x = newPosition.x;
@@ -517,18 +530,97 @@ function onDragMove()
         }
     }
 
-    if ((this.x < 20)  && (this.parent.name == 'ressource'))// wechseln der Fester
+    if (leaveRessource(this))// wechseln der Fester
     {
+        var newPos = transposeCoord(this);
         this.parent.dragReceiver.addChild(this); 
-        this.x = 800;
-        this.y = 100;
+        this.borderCrossX = newPos.x;
+        this.borderCrossY = newPos.y;
         this.dragging = true; 
     }
 
+    if (leavePalette(this))// wechseln der Fester
+    {
+        var newPos = transposeCoord(this);
+        this.parent.dragReceiver.addChild(this); 
+        this.dragging = true; 
+        this.borderCrossX = newPos.x;
+        this.borderCrossY = newPos.y;
+    }
     //console.log(this.x, this.parent.name);
     event.stopPropagation();
 }
 
+function transposeCoord(aPixiObject)
+{
+    parent = parentViewport(aPixiObject);
+    origin = new PIXI.Point(0,0);
+    var newPos = parent.dragReceiver.toLocal(origin, aPixiObject);
+
+    if (parent.name == 'palette' )
+         newPos = parent.dragReceiver.toLocal(origin, parent.x);
+    // depending on the window a correction is needed
+    if (parent.name == 'ressource' )
+         newPos = parent.dragReceiver.toLocal(origin, parent.x-paletteSize);
+
+    return newPos; 
+}
+
+function parentViewport(aPixiObject)
+{
+    return aPixiObject.parent;
+
+}
+
+function leaveRessource(aPixiObject)
+{
+    const parent = parentViewport(aPixiObject);
+
+    if ((aPixiObject.x < 20)  && (parent.name == 'ressource'))
+        return true; 
+    else
+        return false; 
+}
+
+function leavePalette(aPixiObject)
+{
+    const parent = parentViewport(aPixiObject);
+
+    if ((aPixiObject.x < 20)  && (parent.name == 'palette'))
+        return true; 
+    else
+        return false; 
+}
+
+function moveHomeFunc() 
+{
+    if (this.dragging)
+        return; 
+
+    const deltaX = this.borderCrossX - this.x;
+    const deltaY = this.borderCrossY - this.y;   
+
+    if ((deltaX == 0) && (deltaY == 0) )
+        return
+
+    //console.log("Aufgerufen", this.borderCrossX, deltaX, deltaY);
+
+    if (Math.abs(deltaX) > 2)
+        this.x += deltaX/10 ; 
+    else 
+        this.x = this.borderCrossX;
+
+    if (Math.abs(deltaY) > 2)
+        this.y += deltaY/10 ; 
+    else
+        this.y = this.borderCrossY;
+}
+  
+
+function moveNeutralFunc() 
+{
+
+}
 
 // function pointerMove(event) {
 //     if (this.dragging && !prio ) 

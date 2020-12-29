@@ -187,8 +187,8 @@ gsnElement(Type, Element) :-
 
 
 % causes
-elementCause(solution, _,  Element, Element2) :-
-	body(3, 100, 0.5, Body),
+elementCause(solution, Level,  Element, Element2) :-
+	body(Level, 0, 0, Body),
 	solution(body, Body, Element, Element2).
 
 elementCause(goal, Level,  Element, Element2) :-

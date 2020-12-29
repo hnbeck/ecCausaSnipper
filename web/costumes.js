@@ -17,11 +17,11 @@ var subtreeTemplate = { 'goal': 0,
                         'interval' : []
                         }
 
-var flipSign = -1;
-
 const iMass = 0;
 const iKFact = 1; 
-const iV = 2; 
+
+var numberStrategy = 1; 
+var numberSolution = 1; 
 
 // ?(S,A)
 // !(S, S*)
@@ -146,10 +146,11 @@ function gsnElemGenerator(elemType, id, body, explanation)
     elemCont.interactive = true; 
     elemCont.mass = body[iMass];
     elemCont.k = body[iKFact];
-    elemCont.v = body[iV];
     // for interaction
     elemCont.touched = false; 
     elemCont.dragging = false; 
+    elemCont.linked = false; 
+    elemCont.autoMove = moveNeutralFunc; 
 
     elemCont 
             .on('pointerdown', onDragStart)
@@ -167,10 +168,11 @@ function gsnElemGenerator(elemType, id, body, explanation)
             if (elemCont.mass == 0) 
             {   
                 parentContainer = ressourceWindow.vpRef; 
-                elemCont.x = ressourceWindow.width/2-10;
+                elemCont.x = ressourceWindow.width/2;
                 elemCont.y = numberStrategy*layerheight;
                 numberStrategy++;
                 lineAlpha = 0.0; 
+                elemCont.mass = 70; 
             } 
             else
             {
@@ -181,15 +183,33 @@ function gsnElemGenerator(elemType, id, body, explanation)
             break;
 
         case ('solution'):
-            elemCont.x = viewportSize/2 + Math.random()*100*flipSign; 
-            elemCont.y = canvasHeight/2;
-            flipSign *= -1; 
+
             ressourceID = "/graphics/solution.png"; 
-            midSymbol = null; 
-            symbolAlpha = 0.8;
-            // in this case its a ressource solution (like mass = 0 for strategy)
-            //if (elemCont.v != 0) 
-                solutionList.push(elemCont);
+            if (elemCont.mass == 0) 
+            {   
+                parentContainer = paletteWindow.vpRef; 
+                elemCont.x = paletteWindow.width/2;
+                elemCont.y = numberSolution*layerheight;
+                numberSolution++;
+                lineAlpha = 0.0; 
+                symbolAlpha = 0.7; 
+                elemCont.mass = 70; 
+            } 
+            else
+            {
+                elemCont.x = 2000; 
+                elemCont.y = canvasHeight/2;
+            }
+
+            // elemCont.x = viewportSize/2 + Math.random()*100*flipSign; 
+            // elemCont.y = canvasHeight/2;
+            // flipSign *= -1; 
+            // ressourceID = "/graphics/solution.png"; 
+            // midSymbol = null; 
+            // symbolAlpha = 0.8;
+            // // in this case its a ressource solution (like mass = 0 for strategy)
+            // //if (elemCont.v != 0) 
+            //     solutionList.push(elemCont);
             break;
 
         case ('goal') :
