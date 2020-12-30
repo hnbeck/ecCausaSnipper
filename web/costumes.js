@@ -201,15 +201,6 @@ function gsnElemGenerator(elemType, id, body, explanation)
                 elemCont.y = canvasHeight/2;
             }
 
-            // elemCont.x = viewportSize/2 + Math.random()*100*flipSign; 
-            // elemCont.y = canvasHeight/2;
-            // flipSign *= -1; 
-            // ressourceID = "/graphics/solution.png"; 
-            // midSymbol = null; 
-            // symbolAlpha = 0.8;
-            // // in this case its a ressource solution (like mass = 0 for strategy)
-            // //if (elemCont.v != 0) 
-            //     solutionList.push(elemCont);
             break;
 
         case ('goal') :

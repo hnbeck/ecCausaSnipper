@@ -52,16 +52,6 @@ function waitforParsed(msec, count)
 
 //////////////////////////////// some Prolog initialization stuff ///////////////////////////////////
 
-// function start_Prolog()
-// {
-//     // Tau is loaded, now pengine and during this also init tau
-//     pengine = new Pengine({
-//         oncreate: handleCreate, 
-//         onsuccess: handleOutput,
-//         destroy: false
-//     });     
-// }
-
 function init_Prolog() {
     // load tau
         if (!parsed)
@@ -204,44 +194,10 @@ function pixiAssets()
     stage.addChild(background);
 
     var scaleFactor = 0.8
-    const windowConfigMain = {
-        x:1, 
-        y:1, 
-        scale: scaleFactor, 
-        name: 'play',
-        alpha: 0.2, 
-        type: 's',
-        width: viewportSize, 
-        height: viewportSize, 
-        winWidth: canvasWidth-ressourceSize-paletteSize,
-        winHeight: canvasHeight
-    }
-
-    const windowConfigRessource = {
-        x:0, 
-        y:1, 
-        scale: 1.0, 
-        name: 'ressource',
-        alpha: 0.4, 
-        type: 'r',
-        width: ressourceSize, 
-        height: 2000, 
-        winWidth: ressourceSize,
-        winHeight: canvasHeight
-    }
-
-     const windowConfigPalette = {
-        x:0, 
-        y:1, 
-        scale: 1.0, 
-        name: 'palette',
-        alpha: 0.5, 
-        type: 'r',
-        width: paletteSize, 
-        height: 2000, 
-        winWidth: paletteSize,
-        winHeight: canvasHeight
-    }
+   
+    windowConfigMain = configMain(); 
+    windowConfigRessource = configRessource(); 
+    windowConfigPalette = configPalette(); 
 
     const winPosMain = new PIXI.Point(0,0);
     const winPosRessource = new PIXI.Point(windowConfigMain.winWidth + windowConfigPalette.winWidth,0);
@@ -261,13 +217,13 @@ function pixiAssets()
     playWindow.x = winPosMain.x;
     playWindow.y = winPosMain.y;
     //playWindow.vpRef.scale.set(scaleFactor);
-    console.log("Test", winPosRessource);
+
     playWindow.vpRef.sortableChildren = true; 
     ressourceWindow.x = winPosRessource.x;
     ressourceWindow.y = winPosRessource.y;
     
-    paletteWindow.x = canvasWidth-ressourceSize-paletteSize;
-    paletteWindow.y = 0;
+    paletteWindow.x = winPosPalette.x;
+    paletteWindow.y = winPosPalette.y;
    
     ressourceWindow.vpRef.dragReceiver = playWindow.vpRef; 
     paletteWindow.vpRef.dragReceiver = playWindow.vpRef; 
@@ -532,39 +488,23 @@ function onDragMove()
 
     if (leaveRessource(this))// wechseln der Fester
     {
-        var newPos = transposeCoord(this);
-        this.parent.dragReceiver.addChild(this); 
-        this.borderCrossX = newPos.x;
-        this.borderCrossY = newPos.y;
+        const parent = parentViewport(this);
+        parent.leave(this);
+        parent.dragReceiver.enter(this, parent);
         this.dragging = true; 
     }
 
     if (leavePalette(this))// wechseln der Fester
     {
-        var newPos = transposeCoord(this);
-        this.parent.dragReceiver.addChild(this); 
+        const parent = parentViewport(this);
+        parent.leave(this);
+        parent.dragReceiver.enter(this, parent);
         this.dragging = true; 
-        this.borderCrossX = newPos.x;
-        this.borderCrossY = newPos.y;
     }
     //console.log(this.x, this.parent.name);
     event.stopPropagation();
 }
 
-function transposeCoord(aPixiObject)
-{
-    parent = parentViewport(aPixiObject);
-    origin = new PIXI.Point(0,0);
-    var newPos = parent.dragReceiver.toLocal(origin, aPixiObject);
-
-    if (parent.name == 'palette' )
-         newPos = parent.dragReceiver.toLocal(origin, parent.x);
-    // depending on the window a correction is needed
-    if (parent.name == 'ressource' )
-         newPos = parent.dragReceiver.toLocal(origin, parent.x-paletteSize);
-
-    return newPos; 
-}
 
 function parentViewport(aPixiObject)
 {
@@ -576,7 +516,7 @@ function leaveRessource(aPixiObject)
 {
     const parent = parentViewport(aPixiObject);
 
-    if ((aPixiObject.x < 20)  && (parent.name == 'ressource'))
+    if ((aPixiObject.x < parent.margin)  && (parent.name == 'ressource'))
         return true; 
     else
         return false; 
@@ -586,7 +526,7 @@ function leavePalette(aPixiObject)
 {
     const parent = parentViewport(aPixiObject);
 
-    if ((aPixiObject.x < 20)  && (parent.name == 'palette'))
+    if ((aPixiObject.x < parent.margin)  && (parent.name == 'palette'))
         return true; 
     else
         return false; 
@@ -603,12 +543,34 @@ function moveHomeFunc()
     if ((deltaX == 0) && (deltaY == 0) )
         return
 
-    //console.log("Aufgerufen", this.borderCrossX, deltaX, deltaY);
+    console.log("Aufgerufen", this.borderCrossX, deltaX, deltaY);
 
     if (Math.abs(deltaX) > 2)
         this.x += deltaX/10 ; 
     else 
-        this.x = this.borderCrossX;
+    {
+        const parent = parentViewport(this);
+        if (parent.name == 'play')
+        {
+             parent.leave(this);
+            // it depends on which palettewindow it has to be
+            if (this.name == 'strategy')
+            {
+                ressourceWindow.vpRef.enter(this, parent);
+            }
+            if (this.name == 'solution')
+            {
+                paletteWindow.vpRef.enter(this, parent);
+            }
+       }
+       else
+       {
+            this.autoMove = moveNeutralFunc; 
+            this.x = this.borderCrossX;
+            this.y = this.borderCrossY;
+       }
+       
+    }
 
     if (Math.abs(deltaY) > 2)
         this.y += deltaY/10 ; 
@@ -622,39 +584,3 @@ function moveNeutralFunc()
 
 }
 
-// function pointerMove(event) {
-//     if (this.dragging && !prio ) 
-//     {
-//             const newPosition = this.data.global;
-//             aNew.x = newPosition.x;
-//             aNew.y = newPosition.y;
-//     }
-// }
-
-// function pointerDown(event) {
-   
-//     console.log("Back");
-
-//     if (!prio)
-//     {
-//         aNew = strategyGenerator([[2, 'rl'],[1, 'mt'], [3, 'ph']]);
-//         this.data = event.data;
-//         aNew.alpha = 0.5;
-//         aNew.pivot.x = aNew.width / 2;
-//         aNew.pivot.y = aNew.height / 2;
-//         this.dragging = true;
-
-//         const newPosition = this.data.global; 
-//         aNew.x = newPosition.x; 
-//         aNew.y = newPosition.y; 
-//         stage.addChild(aNew);
-//     }
-// }
-
-// function pointerUp(event) {
-//     if (this.dragging && !prio )
-//     {
-//         this.dragging = false;
-//         aNew.alpha = 1.0; 
-//     }
-// }

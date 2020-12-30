@@ -13,18 +13,23 @@ function windowGenerator(winConf)
     // indication of viewpoint area which may be much larger than camera view
     area.alpha = winConf.alpha;
     area.name = "area";
-    area.scale.width = viewportSize;
-    area.scale.height = viewportSize;
+    area.scale.width = winConf.width;
+    area.scale.height = winConf.height;
 
     viewport.scale.set(winConf.scale);
 
-    viewport.position = viewPos(winConf);
+    viewport.position = viewportPos(winConf);
     viewport.interactive = true;
     viewport.buttonMode = false; 
     viewport.filter = {x: winConf.x, y: winConf.y};
     viewport.name = winConf.name;
     viewport.pivot.set(0.5); 
-
+    viewport.margin = winConf.margin;
+    viewport.accessibleChildren = true; 
+    viewport.leave =  winConf.leave; 
+    viewport.enter =  winConf.enter; 
+    viewport.width = winConf.width; 
+    viewport.height = winConf.height; 
     viewport
             .on('pointerdown', onPointerStart)
             .on('pointerup', onPointerEnd)
@@ -46,14 +51,16 @@ function windowGenerator(winConf)
     augmentLayer.addChild(viewport.mask);
     augmentLayer.name = "augment"; 
     window.vpRef = viewport; 
+    window.name = 'window'+ winConf.name;
     window.addChild(viewport);
     window.addChild(augmentLayer);
 
     return window; 
 }
 
-
-function viewPos(winConf)
+// position the viewport in window
+// the main viewport shall be positioned such that the mid is in the mid of the window
+function viewportPos(winConf)
 {
     const pos = new PIXI.Point(0,0);
    
@@ -138,6 +145,121 @@ function scaleGenerator () {
 
    return [btUp, btDown];
 
+}
+
+
+/////////////////////////////// Configurations ////////////////////////////////////////////
+
+function configMain() 
+{
+    const leaveFunc = function (aPixiObject) 
+        {
+            //is.removeChild(aPixiObject); // this is the viewport which owns this function
+            aPixiObject.x = 0; 
+        }
+
+    const enterFunc = function (aPixiObject, from) 
+        {
+            const origin = new PIXI.Point(0,0);
+            const newPos = this.toLocal(origin, aPixiObject);
+           
+            this.addChild(aPixiObject); 
+            aPixiObject.borderCrossX = newPos.x; 
+            aPixiObject.borderCrossY = newPos.y;
+            from.removeChild(aPixiObject);
+        }
+
+    const configSet = {
+        x:1, 
+        y:1, 
+        scale: 1.0, 
+        name: 'play',
+        alpha: 0.2, 
+        type: 's',
+        width: viewportSize, 
+        height: viewportSize, 
+        winWidth: canvasWidth-ressourceSize-paletteSize,
+        winHeight: canvasHeight,
+        margin: 0,
+        leave: leaveFunc,
+        enter: enterFunc
+    }
+
+    return configSet;
+}
+ 
+function configRessource() 
+{
+    const leaveFunc = function (aPixiObject) 
+        {
+           // his.removeChild(aPixiObject); // this is the viewport which owns this function
+            aPixiObject.x = - aPixiObject.width -paletteSize; 
+        }
+
+    const enterFunc = function (aPixiObject, from) 
+        {
+            const origin = new PIXI.Point(0,0);
+            const newPos = this.toLocal(origin, aPixiObject);
+            newPos.x -= aPixiObject.width; 
+            this.addChild(aPixiObject); 
+            aPixiObject.borderCrossX = ressourceSize/2; 
+            aPixiObject.borderCrossY = newPos.y;
+            from.removeChild(aPixiObject);
+        }
+
+    const configSet = {
+        x:0, 
+        y:1, 
+        scale: 1.0, 
+        name: 'ressource',
+        alpha: 0.4, 
+        type: 'r',
+        width: ressourceSize, 
+        height: 2000, 
+        winWidth: ressourceSize,
+        winHeight: canvasHeight,
+        margin: 20,
+        leave: leaveFunc,
+        enter: enterFunc
+    }
+
+    return configSet; 
+}
+
+function configPalette() 
+{
+     const leaveFunc = function (aPixiObject)
+        {
+            aPixiObject.x = - aPixiObject.width; 
+        }
+
+    const enterFunc = function(aPixiObject, from) 
+        {
+            const origin = new PIXI.Point(0,0);
+            const newPos = this.toLocal(origin, aPixiObject);
+            this.addChild(aPixiObject); 
+            console.log("Breite", this.width)
+            aPixiObject.borderCrossX = this.width/2; 
+            aPixiObject.borderCrossY = newPos.y;
+            from.removeChild(aPixiObject);
+        }
+
+     const configSet = {
+        x:0, 
+        y:1, 
+        scale: 1.0, 
+        name: 'palette',
+        alpha: 0.5, 
+        type: 'r',
+        width: paletteSize, 
+        height: 2000, 
+        winWidth: paletteSize,
+        winHeight: canvasHeight,
+        margin:20,
+        leave: leaveFunc,
+        enter: enterFunc
+    }
+    return configSet; 
 }
 
 ////////////////////// scaling / dragging call backs for touch /////////////////////////
