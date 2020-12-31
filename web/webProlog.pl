@@ -244,10 +244,6 @@ midInterval([A, B], C) :-
 	C is (B-A)/2 + A.
 
 
-
-
-
-
 %% newGSN(Type, Body, Explanation, Element) :-
 %% 	state(gsnCounter, No),
 %% 	No2 is No + 1, 
@@ -281,6 +277,7 @@ midInterval([A, B], C) :-
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
+
 newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
 	genGoal(ID, E, Level, V,  Goal),
 	goalAsSubtree(Goal, Parent, NewSubtree),
@@ -353,22 +350,21 @@ nextVelocity(V, V2) :-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% >(F, S, S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % comming from interactions
-
+% here Interface to Javascript - JS calls addGoalChild
 % in this form more a matter of test
 % StID is subtree ID = ID of head goal of this subtree
 addGoalChild(Type,TreeID, ID) :-
 	state(gsnTree, Tree),
-	%state(currentsubtree,A),
-	%write('T: current ST'), write(A),
+	write('T:current Tree'), write(Tree);
 	updateTree(TreeID, ID, Type, 2, Tree, Tree2),
-	% write('T: new Tree'), write(Tree2),
+	write('T: new Tree'), write(Tree2),
 	holdTerm(Tree2, gsnTree).
 
 %%% go througt the tree
 updateTree(TreeID, ID, Type, Level, Tree, Tree2) :-
 	subtree(id, Tree, TreeID),
 	newGoalChild(Type, ID, Level, Tree, Tree2),!.
-
+%%%
 updateTree(TreeID, ID, Type, Level, Tree, Tree4) :-
 	subtree(childs, Tree, Childs),
 	updateChilds(TreeID, ID, Type, Level, Childs, Childs2, NewMass),

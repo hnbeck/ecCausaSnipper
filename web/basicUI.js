@@ -359,13 +359,7 @@ function pixiUpdate()
             }
 
         }
-        // for (var i = 0; i < space.length; i++) 
-        // {
-        //     space[i].x += space[i].delta;
-        //     space[i].delta = 0; 
-        // }
-
-
+       
     }
 
     renderer.render(stage);
@@ -411,23 +405,29 @@ function onDragStart(event) {
     // store a reference to the data
     // the reason for this is because of multitouch
     // we want to track the movement of this particular touch
-    console.log("DRAG START", event.data)
-    this.data = event.data;
-    this.alpha = 0.5;
-    this.dragging = true;
+    console.log("DRAG start");
+    if (event.data != null)
+    {
+        this.data = event.data;
+        this.alpha = 0.5;
+        this.dragging = true;
 
-    prio = true; 
+        prio = true; 
+    }
 
     event.stopPropagation();
 }
 
 function onDragEnd() 
 {
+    if (!this.dragging)
+        return; 
+
     this.alpha = 1;
     this.dragging = false;
     this.data = null;
     prio = false; 
-    console.log("drag end", this.name);
+    console.log("DRAG end", this.name);
 
     if ((touchedObject.length > 0 ) && (touchedObject[0].receptor))
     {
@@ -437,25 +437,21 @@ function onDragEnd()
        
         if (this.name == 'strategy')
         {
-            const query = 'addGoalChild(strategy,' + id +', '+ draggedID;
-            callBackQueue.push(query + ').');
-            //console.log("an Pengine", query);
-            //pengine.ask(query + ', CurrentSubtree)');
+            const querytext = 'addGoalChild(strategy,' + id +', '+ draggedID + ').' ;
+            session.query(querytext);
+            session.answer(printAnswer);
             playWindow.vpRef.removeChild(this);
             touchedObject[0].receptor = false; 
             touchedObject = [];  
-
         }
 
         if (this.name == 'solution')
         {
-            const query = 'addGoalChild(solution,' + id +', '+ draggedID ;
-            callBackQueue.push(query + ').');
-            //console.log("An Pengine ", query);
-            //pengine.ask(query + ', CurrentSubtree)');
-            const n = solutionList.indexOf(this);
+            const querytext = 'addGoalChild(solution,' + id +', '+ draggedID + ').' ;
+            session.query(querytext);
+            session.answer(printAnswer);
             playWindow.vpRef.removeChild(this);
-            solutionList.splice(n, 1);
+            //solutionList.splice(n, 1);
             touchedObject[0].receptor = false; 
             touchedObject = [];  
         }
@@ -484,22 +480,22 @@ function onDragMove()
         {
             touchedObject[0].touched = true; 
         }
-    }
+    
+        if (leaveRessource(this))// wechseln der Fester
+        {
+            const parent = parentViewport(this);
+            parent.leave(this);
+            parent.dragReceiver.enter(this, parent);
+            this.dragging = true; 
+        }
 
-    if (leaveRessource(this))// wechseln der Fester
-    {
-        const parent = parentViewport(this);
-        parent.leave(this);
-        parent.dragReceiver.enter(this, parent);
-        this.dragging = true; 
-    }
-
-    if (leavePalette(this))// wechseln der Fester
-    {
-        const parent = parentViewport(this);
-        parent.leave(this);
-        parent.dragReceiver.enter(this, parent);
-        this.dragging = true; 
+        if (leavePalette(this))// wechseln der Fester
+        {
+            const parent = parentViewport(this);
+            parent.leave(this);
+            parent.dragReceiver.enter(this, parent);
+            this.dragging = true; 
+        }
     }
     //console.log(this.x, this.parent.name);
     event.stopPropagation();
@@ -543,7 +539,7 @@ function moveHomeFunc()
     if ((deltaX == 0) && (deltaY == 0) )
         return
 
-    console.log("Aufgerufen", this.borderCrossX, deltaX, deltaY);
+    //console.log("Aufgerufen", this.borderCrossX, deltaX, deltaY);
 
     if (Math.abs(deltaX) > 2)
         this.x += deltaX/10 ; 

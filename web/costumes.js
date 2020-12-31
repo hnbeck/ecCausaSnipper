@@ -3,7 +3,7 @@
 // list of elements in a layer
 var layerList = []; 
 // list of solutions
-var solutionList = []; 
+//var solutionList = []; 
 // subtreeList is a list of all subtrees, 
 // describing the embodyment of a subtree
 // subtree = [goal, strategy, [Subtrees], mass], this are the PIXI objects
@@ -56,11 +56,11 @@ function updateSubtreeStrategy(id, strategy, mass)
     subtree.mass = mass; 
 
     // If strategy added all "free " solutions has to increase the level
-    for (var i = 0; i < solutionList.length; i++)
-    {
-        const fact = 1/ solutionList[i].k;
-        solutionList[i].k = 1/(fact - (6*layerheight/20));
-    }
+    // for (var i = 0; i < solutionList.length; i++)
+    // {
+    //     const fact = 1/ solutionList[i].k;
+    //     solutionList[i].k = 1/(fact - (6*layerheight/20));
+    // }
     console.log("STRATEGY Subtree strategy now", id, subtree);
     console.log("STRATEGY: SubtreeList at the moment ", subtreeList);
 } 
@@ -71,7 +71,7 @@ function updateSubtreeSolution(id, solution, mass)
     console.log("SOLUTION Subtrees at the moment ", subtreeList);
     const subtree = subtreeList[id];
  
-    solution.v = 0; 
+    //solution.v = 0; 
     subtree.strategy = solution; // strategiesy and solution have the same place in subtree
     subtree.mass = mass; 
 
@@ -176,7 +176,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
             } 
             else
             {
-                elemCont.x = 2000; 
+                elemCont.x = canvasWidth/2; 
                 elemCont.y = canvasHeight/2;
             }
 
@@ -197,16 +197,15 @@ function gsnElemGenerator(elemType, id, body, explanation)
             } 
             else
             {
-                elemCont.x = 2000; 
+                elemCont.x = canvasWidth/2; 
                 elemCont.y = canvasHeight/2;
             }
 
             break;
 
         case ('goal') :
-            const dx = elemCont.v; 
-
-            elemCont.x = viewportSize/2 + dx; 
+           
+            elemCont.x = viewportSize/2; 
             elemCont.y = canvasHeight/2;
             ressourceID = "/graphics/goal.png"; 
             midSymbol = null; 
