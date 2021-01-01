@@ -210,7 +210,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
             ressourceID = "/graphics/goal.png"; 
             midSymbol = null; 
             elemCont.receptor = true; 
-
+            elemCont.interactive = false; 
             break; 
     }
    

@@ -270,7 +270,7 @@ function placeVertical(aWindow)
          else
                 elemlist[i].scale.set(1);
 
-        if ((elemlist[i].mass > 0) && (elemlist[i].dragging !== true))
+        if ((elemlist[i].mass > 0) && (elemlist[i].dragging != true))
         {
             // force down
             const gForce  = elemlist[i].mass/10;
@@ -334,7 +334,8 @@ function pixiUpdate()
                
                 if  (!Array.isArray(subtree.strategy))
                 {
-                   subtree.strategy.x = subtree.goal.x; 
+                   if  (!subtree.strategy.dragging)
+                        subtree.strategy.x = subtree.goal.x; 
                     // adjust the lin
                    adjustLine(subtree.strategy.incomming, 
                                 subtree.goal.x, 
@@ -346,7 +347,7 @@ function pixiUpdate()
              
                 if (subtree.parentID != 'root')
                 {
-                    if (!Array.isArray(headStrategy)) 
+                    if (!Array.isArray(headStrategy) && headStrategy != 'solution') 
                     {// redraw the line
                         adjustLine( subtree.goal.incomming,  
                                     headStrategy.x, 
@@ -406,6 +407,7 @@ function onDragStart(event) {
     // the reason for this is because of multitouch
     // we want to track the movement of this particular touch
     console.log("DRAG start");
+
     if (event.data != null)
     {
         this.data = event.data;
@@ -442,7 +444,7 @@ function onDragEnd()
             session.answer(printAnswer);
             playWindow.vpRef.removeChild(this);
             touchedObject[0].receptor = false; 
-            touchedObject = [];  
+            touchedObject = []; 
         }
 
         if (this.name == 'solution')
@@ -460,6 +462,8 @@ function onDragEnd()
 
     if (this.linked == false)
         this.autoMove = moveHomeFunc;
+    else 
+        this.autoMove = moveNeutralFunc;
 
     // hier Tau Aufrfen
     event.stopPropagation();
@@ -481,21 +485,27 @@ function onDragMove()
             touchedObject[0].touched = true; 
         }
     
-        if (leaveRessource(this))// wechseln der Fester
-        {
-            const parent = parentViewport(this);
-            parent.leave(this);
-            parent.dragReceiver.enter(this, parent);
-            this.dragging = true; 
-        }
+        const parent = parentViewport(this);
 
-        if (leavePalette(this))// wechseln der Fester
+        if (parent.name != 'play')
         {
-            const parent = parentViewport(this);
-            parent.leave(this);
-            parent.dragReceiver.enter(this, parent);
-            this.dragging = true; 
+            if (leaveRessource(this))// wechseln der Fester
+            {
+              
+                parent.leave(this);
+                parent.dragReceiver.enter(this, parent);
+                this.dragging = true; 
+            }
+
+            if (leavePalette(this))// wechseln der Fester
+            {
+
+                parent.leave(this);
+                parent.dragReceiver.enter(this, parent);
+                this.dragging = true; 
+            }
         }
+      
     }
     //console.log(this.x, this.parent.name);
     event.stopPropagation();
@@ -530,6 +540,8 @@ function leavePalette(aPixiObject)
 
 function moveHomeFunc() 
 {
+    console.log("Home mov3", this.linked);
+
     if (this.dragging)
         return; 
 

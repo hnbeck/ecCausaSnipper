@@ -41,18 +41,18 @@ init :-
 
 explanationFromID(ID, Explanation) :-
 	state(gsnPalette, List),
-	write('T:PAltette'), write(List),
+	%write('T:PAltette'), write(List),
 	expByID(List, ID, Explanation).
 
 expByID([], _, _) :-!.
 
 expByID([H|T], ID, Exp) :-
 	arg(1, H, ID),
-	arg(2, H, Exp),!.
+	arg(3, H, Exp),!.
 
 expByID([H|T], ID, Exp) :-
  	arg(1, H, ID2),
-	arg(2, H, _),
+	arg(3, H, _),
 	expByID(T, ID, Exp).
 
 
@@ -130,13 +130,12 @@ setupGame(Subtree, List3) :-
 	write('Setup'), write(Subtree),
 	goal(explanation, Root, [[N1, T1], [N2, T2], [N3, T3]]),
 	Sum is N1 + N2 + N3,
-	write('Generate palette : '), write(Sum),
+	%write('Generate palette : '), write(Sum),
 	palette(strategy, Sum, List), 
-	write('T: Strat List'), write(List),
+	%write('T: Strat List'), write(List),
 	palette(solution, Sum, List2),
-	write('Slution list'), write(List2),
+	%write('Slution list'), write(List2),
 	append(List, List2, List3),
-	holdTerm(NewSubtree, gsnTree),
 	holdTerm(List3, gsnPalette).
 
 % GL = Goal, St = Strukture, So = Solution, 
@@ -273,10 +272,10 @@ newGSN(Type, ID, Body, Explanation, Element) :-
 
 %% % in future explanation is defined from other place
 genElement(Type, ID, Level, Mass, V, Element) :-
-	write('T:search Exp'),
+	%write('T:search Exp'),
 	explanationFromID(ID, Explanation),
 	body(Level, Mass, V, Body),
-	write('T:AFTER BODY'),
+	%write('T:AFTER BODY2'), write(Explanation),
 	newGSN(Type, ID, Body, Explanation, Element).
 
 % new goal bedeutet new subtree - immer
@@ -307,11 +306,11 @@ updateAllChilds2( [C| Tail] ) :-
 
 % goal child is strategy and solution
 newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
-	write('T: Goal child'), write(Type), write(Subtree),
+	%write('T: Goal child'), write(Type), write(Subtree),
 	genElement(Type, ID,  Level, 100, 0, Element),
-	write('T: Nach gsn Element'),
+	%write('T: Nach gsn Element'), write(Subtree),
 	subtreePlusElement(Level, Type, Element, Subtree, Subtree2),
-	write('T:New Treee'), write(Subtree2),
+	%write('T:New Treee'), write(Subtree2),
 	realElement(Type, Element, Subtree2).
 	
 
@@ -410,7 +409,6 @@ subtreePlusElement(Level, strategy, Element, subtree(Goal, [], [], M, Parent, IV
 	newStrategyGoals(Element, Level, Subtree2, Subtree3).
 
 subtreePlusElement(Level, solution, Element, subtree(Goal, [], [], M, Parent, IV), Subtree2) :-
-	write('WUMMMMMER4'), write(Element),
 	element(mass, Element, M2),
 	M3 is M + M2, 
 	Subtree2 = subtree(Goal, Element, [], M3, Parent, IV).
