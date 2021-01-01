@@ -40,7 +40,8 @@ init :-
 % search the explanation of a given element
 
 explanationFromID(ID, Explanation) :-
-	state(gsn, gsnPalette(List)),
+	state(gsnPalette, List),
+	write('T:PAltette'), write(List),
 	expByID(List, ID, Explanation).
 
 expByID([], _, _) :-!.
@@ -131,8 +132,9 @@ setupGame(Subtree, List3) :-
 	Sum is N1 + N2 + N3,
 	write('Generate palette : '), write(Sum),
 	palette(strategy, Sum, List), 
+	write('T: Strat List'), write(List),
 	palette(solution, Sum, List2),
-	write('Slution list', List2),
+	write('Slution list'), write(List2),
 	append(List, List2, List3),
 	holdTerm(NewSubtree, gsnTree),
 	holdTerm(List3, gsnPalette).
@@ -244,14 +246,14 @@ midInterval([A, B], C) :-
 	C is (B-A)/2 + A.
 
 
-%% newGSN(Type, Body, Explanation, Element) :-
-%% 	state(gsnCounter, No),
-%% 	No2 is No + 1, 
-%% 	holdTerm(No2, gsnCounter),
-%% 	Element =.. [Type, No2, Body, Explanation].
+newGSN(Type, Body, Explanation, Element) :-
+	state(gsnCounter, No),
+	No2 is No + 1, 
+	holdTerm(No2, gsnCounter),
+	Element =.. [Type, No2, Body, Explanation].
 
-%% newGSN(Type, ID, Body, Explanation, Element) :-
-%% 	Element =.. [Type, ID, Body, Explanation].
+newGSN(Type, ID, Body, Explanation, Element) :-
+	Element =.. [Type, ID, Body, Explanation].
 
 %% % in future explanation will be some kind of randomness
 %% genGoal(Level, V, Goal) :-
@@ -270,10 +272,12 @@ midInterval([A, B], C) :-
 %% 	genElement(strategy, ID, Level, 0, 0, Element).
 
 %% % in future explanation is defined from other place
-%% genElement(Type, ID, Level, Mass, V, Element) :-
-%% 	explanationFromID(ID, Explanation),
-%% 	body(Level, Mass, V, Body),
-%% 	newGSN(Type, ID, Body, Explanation, Element).
+genElement(Type, ID, Level, Mass, V, Element) :-
+	write('T:search Exp'),
+	explanationFromID(ID, Explanation),
+	body(Level, Mass, V, Body),
+	write('T:AFTER BODY'),
+	newGSN(Type, ID, Body, Explanation, Element).
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
@@ -303,9 +307,11 @@ updateAllChilds2( [C| Tail] ) :-
 
 % goal child is strategy and solution
 newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
-	% write('T: Goal child'), write(Type), write(ID),
+	write('T: Goal child'), write(Type), write(Subtree),
 	genElement(Type, ID,  Level, 100, 0, Element),
+	write('T: Nach gsn Element'),
 	subtreePlusElement(Level, Type, Element, Subtree, Subtree2),
+	write('T:New Treee'), write(Subtree2),
 	realElement(Type, Element, Subtree2).
 	
 
@@ -355,7 +361,7 @@ nextVelocity(V, V2) :-
 % StID is subtree ID = ID of head goal of this subtree
 addGoalChild(Type,TreeID, ID) :-
 	state(gsnTree, Tree),
-	write('T:current Tree'), write(Tree);
+	write('T:current Tree'), write(Tree), write(Type),
 	updateTree(TreeID, ID, Type, 2, Tree, Tree2),
 	write('T: new Tree'), write(Tree2),
 	holdTerm(Tree2, gsnTree).
@@ -404,8 +410,9 @@ subtreePlusElement(Level, strategy, Element, subtree(Goal, [], [], M, Parent, IV
 	newStrategyGoals(Element, Level, Subtree2, Subtree3).
 
 subtreePlusElement(Level, solution, Element, subtree(Goal, [], [], M, Parent, IV), Subtree2) :-
+	write('WUMMMMMER4'), write(Element),
 	element(mass, Element, M2),
-	M3 is M + M2/2, 
+	M3 is M + M2, 
 	Subtree2 = subtree(Goal, Element, [], M3, Parent, IV).
 
 subtreePlusSubtree(GoalAsSubtree, root, root) :-!.
