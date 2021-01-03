@@ -487,24 +487,20 @@ function onDragMove()
     
         const parent = parentViewport(this);
 
-        if (parent.name != 'play')
+        if (leaveRessource(this))// wechseln der Fester
         {
-            if (leaveRessource(this))// wechseln der Fester
-            {
-              
-                parent.leave(this);
-                parent.dragReceiver.enter(this, parent);
-                this.dragging = true; 
-            }
-
-            if (leavePalette(this))// wechseln der Fester
-            {
-
-                parent.leave(this);
-                parent.dragReceiver.enter(this, parent);
-                this.dragging = true; 
-            }
+            parent.leave(this);
+            parent.dragReceiver.enter(this, parent);
+            this.dragging = true; 
         }
+
+        if (leavePalette(this))// wechseln der Fester
+        {
+            parent.leave(this);
+            parent.dragReceiver.enter(this, parent);
+            this.dragging = true; 
+        }
+        
       
     }
     //console.log(this.x, this.parent.name);
@@ -540,8 +536,6 @@ function leavePalette(aPixiObject)
 
 function moveHomeFunc() 
 {
-    console.log("Home mov3", this.linked);
-
     if (this.dragging)
         return; 
 

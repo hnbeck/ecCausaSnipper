@@ -187,6 +187,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
             ressourceID = "/graphics/solution.png"; 
             if (elemCont.mass == 0) 
             {   
+                // this happens if element will be added to palette
                 parentContainer = paletteWindow.vpRef; 
                 elemCont.x = paletteWindow.width/2;
                 elemCont.y = numberSolution*layerheight;
@@ -197,8 +198,10 @@ function gsnElemGenerator(elemType, id, body, explanation)
             } 
             else
             {
+                // this happens if it is added as a child of someone
                 elemCont.x = canvasWidth/2; 
                 elemCont.y = canvasHeight/2;
+                elemCont.linked = true; 
             }
 
             break;
@@ -210,7 +213,7 @@ function gsnElemGenerator(elemType, id, body, explanation)
             ressourceID = "/graphics/goal.png"; 
             midSymbol = null; 
             elemCont.receptor = true; 
-            elemCont.interactive = false; 
+           
             break; 
     }
    

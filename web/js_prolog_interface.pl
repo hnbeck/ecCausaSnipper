@@ -27,6 +27,17 @@ realSubtree(Level, Goal, Parent, Subtree) :-
 	embodySubtree(Subtree, JSObject, Level),
 	syncSubtree(child, Parent, Subtree).
 
+realChilds(Level, Parent) :-
+	subtree(childs, Parent, Childs),
+	realChilds2(Level, Parent, Childs).
+
+realChilds2(Level, Parent, []).
+
+realChilds2(Level, Parent, [C | T]) :-
+	subtree(goal, C, Goal),
+	realSubtree(Level, Goal, Parent, C ),
+	realChilds2(Level, Parent, T).
+
 % embody the given element
 realElement(Type, Element, Subtree) :-
 	% write('T: embody element'), write(Element),

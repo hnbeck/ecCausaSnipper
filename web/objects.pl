@@ -34,18 +34,26 @@ solution(level, Goal, Level, Goal2) :-
 	body(Level, Mass, V, Body),
 	solution(body, Body, Goal, Goal2).
 
+
+
+element(mass, Element, M) :-
+	arg(2, Element, body(M, _, _)).
+
+element(mass, M, solution(ID, body(_, K, _), E), solution(ID, body(M, K, 0), E)) :- !.
+element(mass, M, strategy(ID, body(_, K, _), E), strategy(ID, body(M, K, 0), E)) :- !.
+element(mass, M, goal(ID, body(_, K, _), E), goal(ID, body(M, K, 0), E)) :- !.
+
 element(Element, ID, Body, E) :-
 	arg(1, Element, ID),
 	arg(2, Element, Body),
 	arg(3, Element, E).
 
-element(mass, Element, M) :-
-	arg(2, Element, body(M, _, _)).
-
 strategy(body, strategy(_, Body, _), Body).
 strategy(body, Body, strategy(ID, _, E), strategy(ID, Body, E)).
 strategy(id, strategy(ID, _, _), ID).
 strategy(mass, strategy(_, body(M, _, _), _), M).
+
+strategy(explanation, strategy(_, _, Exp), Exp).
 
 strategy(level, Strategy, Level, Strategy2) :-
 	strategy(body, Strategy, body(Mass, _, V)),

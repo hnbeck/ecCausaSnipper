@@ -186,6 +186,14 @@ gsnElement(Type, Element) :-
 	holdTerm(No2, gsnCounter),
 	Element =.. [Type, No2, _, Explanation].
 
+gsnElement(Type, Explanation, Element) :-
+	state(gsnCounter, No),
+	No2 is No + 1, 
+	holdTerm(No2, gsnCounter),
+	Element =.. [Type, No2, _, Explanation].
+
+gsnElement(ID, Type, Explanation, Element) :-
+	Element =.. [Type, ID, _, Explanation].
 
 % causes
 elementCause(solution, Level,  Element, Element2) :-
@@ -245,48 +253,33 @@ midInterval([A, B], C) :-
 	C is (B-A)/2 + A.
 
 
-newGSN(Type, Body, Explanation, Element) :-
-	state(gsnCounter, No),
-	No2 is No + 1, 
-	holdTerm(No2, gsnCounter),
-	Element =.. [Type, No2, Body, Explanation].
+%% newGSN(Type, Body, Explanation, Element) :-
+%% 	state(gsnCounter, No),
+%% 	No2 is No + 1, 
+%% 	holdTerm(No2, gsnCounter),
+%% 	Element =.. [Type, No2, Body, Explanation].
 
-newGSN(Type, ID, Body, Explanation, Element) :-
-	Element =.. [Type, ID, Body, Explanation].
+%% newGSN(Type, ID, Body, Explanation, Element) :-
+%% 	Element =.. [Type, ID, Body, Explanation].
 
-%% % in future explanation will be some kind of randomness
-%% genGoal(Level, V, Goal) :-
-%% 	state(goal, goal(ID, Explanation)),
-%% 	body(Level, 100, V, Body),
-%% 	newGSN(goal, Body, Explanation, Goal).	
-
-%% genGoal(ID, Explanation, Level, V, Goal) :-
-%% 	body(Level, 100, V, Body),
-%% 	newGSN(goal, ID,  Body, Explanation, Goal).	
-
-%% genElement(solution, ID, _, Element) :-
-%% 	genElement(solution, ID, 3, 100, 0.6, Element).
-
-%% genElement(strategy, ID, Level, Element) :-
-%% 	genElement(strategy, ID, Level, 0, 0, Element).
 
 %% % in future explanation is defined from other place
-genElement(Type, ID, Level, Mass, V, Element) :-
-	%write('T:search Exp'),
-	explanationFromID(ID, Explanation),
-	body(Level, Mass, V, Body),
-	%write('T:AFTER BODY2'), write(Explanation),
-	newGSN(Type, ID, Body, Explanation, Element).
+%% genElement(Type, ID, Level, Mass, V, Element) :-
+%% 	%write('T:search Exp'),
+%% 	explanationFromID(ID, Explanation),
+%% 	body(Level, Mass, V, Body),
+%% 	%write('T:AFTER BODY2'), write(Explanation),
+%% 	newGSN(Type, ID, Body, Explanation, Element).
 
 % new goal bedeutet new subtree - immer
 % add it to a parent
 
-newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
-	genGoal(ID, E, Level, V,  Goal),
-	goalAsSubtree(Goal, Parent, NewSubtree),
-	subtreePlusSubtree(NewSubtree, Parent, Parent2),
-	realSubtree(Level, Goal, Parent2, NewSubtree),
-	updateAllChilds(Parent2).
+%% newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
+%% 	genGoal(ID, E, Level, V,  Goal),
+%% 	goalAsSubtree(Goal, Parent, NewSubtree),
+
+%% 	realSubtree(Level, Goal, Parent2, NewSubtree),
+%% 	updateAllChilds(Parent2).
 
 updateAllChilds(root) :- 
 	write('TAU no UPDATE root'),!.
@@ -307,50 +300,14 @@ updateAllChilds2( [C| Tail] ) :-
 % goal child is strategy and solution
 newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
 	%write('T: Goal child'), write(Type), write(Subtree),
-	genElement(Type, ID,  Level, 100, 0, Element),
-	%write('T: Nach gsn Element'), write(Subtree),
-	subtreePlusElement(Level, Type, Element, Subtree, Subtree2),
+	explanationFromID(ID, Explanation),
+	gsnElement(ID, Type, Explanation, Element),
+	elementCause(Type, Level, Element, Element2 ),
+	element(mass, 100, Element2, Element3),
+	subtreePlusElement(Level, Type, Element3, Subtree, Subtree2),
 	%write('T:New Treee'), write(Subtree2),
-	realElement(Type, Element, Subtree2).
+	realElement(Type, Element3, Subtree2).
 	
-
-% generate the child goals of a strategy
-% according that what PEngine has created
-newStrategyGoals(Strategy, Level, Subtree2, Subtree3) :-
-	state(currentsubtree, subtree(G, S, Childs, _)),
-	velocityStart(Childs, V0),
-	Level2 is Level + 1, 
-	childGoals(Childs, Level2, V0, Subtree2, Subtree3).
-
-childGoals([], _, _, S, S) :- !.
-
-childGoals([C| Childs], Level, V, Subtree, Subtree3 ) :-
-	C = subtree(goal(ID, E), A, B, _),
-	newGoal(ID, E, Level, V, Subtree, Subtree2, _),
-	nextVelocity(V, V2),
-	subtree(mass, Subtree2, M2),
-	%write('T: Mass afte'), write(M2),
-	childGoals(Childs, Level, V2, Subtree2, Subtree3).
-
-
-
-
-velocityStart(Childs, Start) :-
-	length(Childs, N),
-	Mode is N mod 2, 
-	(Mode == 0 ->
-		Start = 128;
-		Start = 0).
-
-nextVelocity(0, 128) :- !.
-
-nextVelocity(V, V2) :-
-	V > 0, 
-	V2 is -V.
-
-nextVelocity(V, V2) :-
-	V < 0, 
-	V2 is (-V) + 128.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% >(F, S, S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -420,10 +377,8 @@ subtreePlusSubtree(GoalAsSubtree, root, root) :-!.
 subtreePlusSubtree(GoalAsSubtree, Parent, Parent4) :-
 	subtree(childs, Parent, Childs), 
 	write('TAU: OLD CHild'), write(Childs),
-	write('TAU: GoalsAsSubtree'), write(GoalAsSubtree),
 	subtree(mass, GoalAsSubtree, M),
 	relaxInterval(GoalAsSubtree, Childs, [], Child2),
-	write('TAU: SUBTREEPLUSSUBTREE'), write(Child2),
 	subtreeAddMass(M, Parent, Parent2),
 	subtree(childs, Child2, Parent2, Parent3),
 	updateInterval(Parent3, Parent4).
@@ -434,7 +389,32 @@ updateInterval(Subtree, Subtree2) :-
 	last(Childs, C2),
 	subtree(iv, C1, [A, _]),
 	subtree(iv, C2, [_, B]),	
-	subtree(iv, [-10, 10], Subtree, Subtree2).
+	subtree(iv, [A, B], Subtree, Subtree2).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+newStrategyGoals(Strategy, Level, Subtree, Subtree3) :-
+	subtree(goal, Subtree, G),
+	goal(explanation, G, EG),
+	strategy(explanation, Strategy, ES),
+	transform(ES, EG, E),
+	Level2 is Level + 1, 
+	newGoalSet(E, ES, Level2, Subtree, Subtree3).
+
+newGoalSet(Explanation, Rule, Level, Parent, Parent2) :-
+	expandExpl(Explanation, Rule, ListofExpl),
+	nextGoal(ListofExpl, Level, Parent, Parent2), 
+	realChilds(Level, Parent2).
+
+nextGoal([], Level, Subtree, Subtree) :- !.
+nextGoal([E| Tail], Level, Parent, Subtree3) :-
+	gsnElement(goal, E, Element),
+	elementCause(goal, Level, Element, Element2 ),
+	goalAsSubtree(Element2, Parent, ChildSubtree),
+	subtreePlusSubtree(ChildSubtree, Parent, Parent2),
+	nextGoal(Tail, Level, Parent2, Subtree3).
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%% Intervalhandling 
 
@@ -490,3 +470,138 @@ moveIntervals(left, IV , X, IV2 ) :-
 moveIntervals(right, IV, X, IV2 ) :-
 	shiftInterval(X, IV, IV2).
 
+%%%%%%%%%%%%%%%% strategy transformation rule application %%%%%%%%%%%%%%%%%%%%%%
+
+%%%% Transformation step 1
+
+ruleheadApply([H | _], List) --> rulehead(H, List).
+rulebodyApply([ _ | Body], List) --> rulebody(Body, List).
+
+rulehead([_, _], []) --> [].
+rulehead([N, T], [H | _]) -->  {	H = [N2, T], 
+									(applyCondition(N, N2, N3) ->
+										E = [N3, T]; 
+										E = [] )}, 
+									[E],!.
+
+rulehead([N, T], [_ | Tail]) -->  rulehead([N, T], Tail). 
+
+rulebody( [], _) -->[].
+rulebody([H | T], List) --> ebody(H, List), rulebody(T, List).
+
+ebody(_,[]) --> [].
+ebody(A, [A2 | _]) --> { matchArgument(A, A2, New) },
+							[New], !.
+
+ebody(A, [_ | T]) --> ebody(A, T).
+
+applyCondition(N, N2, N3) :-
+	N3 is N2 - N, 
+	N3 > -1, 
+	N > 0.
+
+matchArgument([N1, T], [N2, T], [N3, T]) :-
+	N3 is N1 + N2.
+
+% apply a strategyrule given as Explanation ES
+transform(ES, EG, Result2) :-
+	phrase(ruleheadApply(ES, EG), A),
+	(A == [[]] -> 
+		Result2 = EG;
+		phrase(rulebodyApply(ES, EG), Result),
+		append(A, Result, Result2)	
+	).
+
+%% %%%%% Transformation step 2
+rulesort([], _ ) --> [].
+rulesort([A | Tail], List) --> ruleElem(A, List), 
+									rulesort(Tail, List).
+
+ruleElem(_, [] )  --> [].
+ruleElem([_, T], [H2 | _] ) --> {H2 = [N2, T]},
+								 	[[N2, T]],!. 
+ruleElem([N1, T], [_ | Tail] ) --> ruleElem([N1, T], Tail),!.
+
+%% % sort explanation in the sequence of the rule types
+%% % then compar
+expandExpl(Explanation, Rule,  ListofExpl) :-
+	phrase(rulesort(Rule, Explanation), Exp2),
+	expand2(Rule, Exp2, [], ListofExpl).
+	
+% case 0: subtraction not possible because to low count of 
+% required argument type
+expand2(_, [[0, T], A2, A3], L1, ListofExpl ) :-
+	countNonZero([[0, T], A2, A3], 0, Z, [], SortArguments),
+	(Z > 1 -> append(L1, [[[0, T], A2, A3]], ListofExpl);
+			splitNonZero(SortArguments, ListofExpl)
+	), !.
+	
+% splitting by substraction can be done
+expand2(Rule, Explanation, L1, ListofExpl ) :-
+	subtract(Rule, Explanation, Result),
+	expand3(Rule, Explanation, Result, L1, ListofExpl).
+
+%%% Cases of outcomes and resulting rule of splitting
+% case b)
+expand3(_, Expl,  [[0, _], [0, _], [0, _]], L1,  L2) :- 
+	append(L1, [Expl], L2), !.
+% fall c)
+expand3(_, Expl, [[N, _], _, _], L1, L2) :-
+	N < 0 , 
+	append(L1, [Expl], L2), !.
+
+expand3(_, _, Result, L1, L3) :-
+	countNonZero(Result, 0, _, [], [[N, T1], [0, T2], [0, T3]]),
+	splitNonZero( [[N, T1], [0, T2], [0, T3]], L),
+	append(L1, L, L3), !.
+
+% case a)
+expand3(Rule, _, [[0, T], A2, A3], L1, L3) :-
+	append(L1, [Rule], L2), 
+	append(L2, [[[0, T], A2, A3]], L3), !.
+
+expand3([R1, [_, TR], R3], [_, A2, _], [AA1, [N2, _], AA3], L1, L3) :-
+	N2 < 0 ,
+	append(L1, [[R1, [0, TR], R3]], L2),
+	append(L2, [[AA1, A2, AA3]], L3), !.
+
+expand3([R1, R2, [_, TR]], [_, _, A3], [AA1, AA2, [N3, _]], L1, L3) :-
+	N3 < 0 ,
+	append(L1, [[R1, R2, [0, TR]]], L2),
+	append(L2, [[AA1, AA2, A3]], L3), !.
+
+
+%% % allgemeiner Fall,
+expand3(Rule, _, Result, L1, L4) :-
+	append(L1,  [Rule], L2), 
+	expand2(Rule, Result, L2, L4).
+
+subtract([], _, []) :- !. 
+subtract([H| T], [H2 | T2], [H3 | T3]) :-
+	subtract2(H, H2, H3), 
+	subtract(T, T2, T3).
+
+subtract2([N1, T], [N2, T], [N3, T]) :-
+	N3 is N2 - N1.
+	%(N3 < 0 -> N4 = N2; N4 = N3).
+
+countNonZero([], Z, Z, L1, L1) :- !. 
+countNonZero([[N, T] | Tail], Z, Z3, L1, L3) :-
+	(N =\= 0 -> Z2 is Z + 1,
+				append([[N, T]], L1, L2); 
+				Z2 is Z,
+				append(L1, [[N, T]], L2)
+	),
+	countNonZero(Tail, Z2, Z3, L2, L3).
+
+% must be sorted
+splitNonZero([[N, T] | Tail], ListofExpl) :-
+	split([ [1, T] | Tail], N, [], ListofExpl).
+
+split(_, 0, L, L) :- !.
+split(E, N, L, L3) :-
+	append(L, [E], L2),
+	N2 is N - 1, 
+	split(E, N2, L2, L3).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
