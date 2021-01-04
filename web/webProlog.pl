@@ -253,48 +253,11 @@ midInterval([A, B], C) :-
 	C is (B-A)/2 + A.
 
 
-%% newGSN(Type, Body, Explanation, Element) :-
-%% 	state(gsnCounter, No),
-%% 	No2 is No + 1, 
-%% 	holdTerm(No2, gsnCounter),
-%% 	Element =.. [Type, No2, Body, Explanation].
+updateParents(Subtree, Subtree2) :-
+	subtree(parent, Subtree, Parent),
+	
+	subtree(iv, Subtree, IV),
 
-%% newGSN(Type, ID, Body, Explanation, Element) :-
-%% 	Element =.. [Type, ID, Body, Explanation].
-
-
-%% % in future explanation is defined from other place
-%% genElement(Type, ID, Level, Mass, V, Element) :-
-%% 	%write('T:search Exp'),
-%% 	explanationFromID(ID, Explanation),
-%% 	body(Level, Mass, V, Body),
-%% 	%write('T:AFTER BODY2'), write(Explanation),
-%% 	newGSN(Type, ID, Body, Explanation, Element).
-
-% new goal bedeutet new subtree - immer
-% add it to a parent
-
-%% newGoal(ID, E, Level, V, Parent, Parent2, NewSubtree) :-
-%% 	genGoal(ID, E, Level, V,  Goal),
-%% 	goalAsSubtree(Goal, Parent, NewSubtree),
-
-%% 	realSubtree(Level, Goal, Parent2, NewSubtree),
-%% 	updateAllChilds(Parent2).
-
-updateAllChilds(root) :- 
-	write('TAU no UPDATE root'),!.
-
-updateAllChilds(Subtree) :-
-	subtree(childs, Subtree, Childs),
-	updateAllChilds2(Childs).
-
-updateAllChilds2([]) :- 
-	write('TAU no UPDATE'),!.
-
-updateAllChilds2( [C| Tail] ) :-
-	write('TAU UPDATE'),
-	syncSubtree(update, _, C),
-	updateAllChilds2(Tail).
 	
 
 % goal child is strategy and solution
@@ -306,7 +269,8 @@ newGoalChild(Type, ID, Level, Subtree, Subtree2) :-
 	element(mass, 100, Element2, Element3),
 	subtreePlusElement(Level, Type, Element3, Subtree, Subtree2),
 	%write('T:New Treee'), write(Subtree2),
-	realElement(Type, Element3, Subtree2).
+	realElement(Type, Element3, Subtree2),
+	updateParents(Subtree2, Subtree3).
 	
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%% >(F, S, S*) %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

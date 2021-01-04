@@ -61,6 +61,7 @@ strategy(level, Strategy, Level, Strategy2) :-
 	strategy(body, Body, Strategy, Strategy2).
 
 subtree(id, subtree(goal(A, _, _), _, _, _, _, _), A).
+subtree(parent, subtree(_, _, _,  _, P, _), P).
 subtree(goal, subtree(A, _, _,  _, _, _), A).
 subtree(str, subtree(_, A, _,  _, _, _), A).
 subtree(childs, subtree(_, _, A, _, _, _), A).
